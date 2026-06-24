@@ -1,0 +1,40 @@
+<ui:FluentWindow x:Class="MidgardStudio.App.Views.RecordPickerDialog"
+                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                 Title="Select"
+                 Width="520" Height="560"
+                 WindowStartupLocation="CenterOwner"
+                 WindowBackdropType="Mica"
+                 ExtendsContentIntoTitleBar="True"
+                 ShowInTaskbar="False">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <ui:TitleBar x:Name="TitleBarCtl" Grid.Row="0" Title="Select" />
+
+        <ui:TextBox x:Name="SearchBox" Grid.Row="1" Margin="14,4,14,8"
+                    PlaceholderText="Search id / aegis / name…" />
+
+        <ListView x:Name="ResultsList" Grid.Row="2" Margin="14,0,14,0"
+                  VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling">
+            <ListView.View>
+                <GridView>
+                    <GridViewColumn Header="ID" Width="70" DisplayMemberBinding="{Binding Id}" />
+                    <GridViewColumn Header="Aegis" Width="180" DisplayMemberBinding="{Binding Aegis}" />
+                    <GridViewColumn Header="Name" Width="210" DisplayMemberBinding="{Binding Name}" />
+                </GridView>
+            </ListView.View>
+        </ListView>
+
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="14">
+            <ui:Button x:Name="OkButton" Content="Select" Appearance="Primary" Margin="0,0,8,0" MinWidth="92" />
+            <ui:Button x:Name="CancelButton" Content="Cancel" MinWidth="92" />
+        </StackPanel>
+    </Grid>
+</ui:FluentWindow>

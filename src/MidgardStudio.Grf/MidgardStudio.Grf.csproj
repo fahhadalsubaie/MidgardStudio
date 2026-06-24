@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <!-- Prebuilt Tokeiburu GRF Editor libraries (netstandard2.0 -> net8-compatible), vendored in lib/grf. -->
+    <GrfLibPath>$(MSBuildThisFileDirectory)..\..\lib\grf</GrfLibPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MidgardStudio.Core\MidgardStudio.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="GRF">
+      <HintPath>$(GrfLibPath)\GRF.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="Utilities">
+      <HintPath>$(GrfLibPath)\Utilities.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="Encryption">
+      <HintPath>$(GrfLibPath)\Encryption.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="ErrorManager">
+      <HintPath>$(GrfLibPath)\ErrorManager.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+  </ItemGroup>
+
+</Project>

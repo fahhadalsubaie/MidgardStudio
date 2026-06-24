@@ -1,0 +1,39 @@
+# ---- Build output ----
+[Bb]in/
+[Oo]bj/
+[Pp]ublish/
+artifacts/
+*.binlog
+
+# ---- IDE / editor ----
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.DotSettings.user
+
+# ---- Build artifacts ----
+*.ilk
+*.pdb
+*.cache
+*.tlog
+*.lastbuildstate
+project.lock.json
+project.fragment.lock.json
+
+# ---- Test / coverage ----
+[Tt]est[Rr]esult*/
+*.coverage
+*.coveragexml
+coverage*.json
+coverage*.xml
+coverage*.info
+
+# ---- Local / OS ----
+.DS_Store
+Thumbs.db
+desktop.ini
+*.local

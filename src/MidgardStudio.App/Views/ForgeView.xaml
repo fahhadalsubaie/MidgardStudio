@@ -1,0 +1,231 @@
+<UserControl x:Class="MidgardStudio.App.Views.ForgeView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             xmlns:vm="clr-namespace:MidgardStudio.App.ViewModels"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=vm:ForgeViewModel}">
+
+    <DockPanel>
+        <!-- Header -->
+        <Grid DockPanel.Dock="Top" Margin="0,0,0,12">
+            <StackPanel>
+                <TextBlock Text="Item Forge" FontSize="20" FontWeight="SemiBold" />
+                <TextBlock Opacity="0.65" FontSize="12" TextWrapping="Wrap"
+                           Text="Create a complete custom item in two quick steps — server data first, then how it looks in the client. Cross-file values are kept correct automatically." />
+            </StackPanel>
+            <Border HorizontalAlignment="Right" VerticalAlignment="Top" Background="#1FFFFFFF" CornerRadius="4" Padding="10,4">
+                <TextBlock Text="{Binding StepLabel}" FontSize="12" FontWeight="SemiBold" Opacity="0.9" />
+            </Border>
+        </Grid>
+
+        <!-- Footer: navigation + actions -->
+        <DockPanel DockPanel.Dock="Bottom" Margin="0,12,0,0">
+            <TextBlock DockPanel.Dock="Top" Text="{Binding StatusMessage}" Foreground="#7FD0A0" TextWrapping="Wrap"
+                       Margin="0,0,0,8" Visibility="{Binding StatusMessage, Converter={StaticResource StringToVis}}" />
+            <StackPanel Orientation="Horizontal">
+                <ui:Button Content="Export data folder…" Command="{Binding ExportDataFolderCommand}" Margin="0,0,6,0">
+                    <ui:Button.Icon><ui:SymbolIcon Symbol="FolderZip24" /></ui:Button.Icon>
+                </ui:Button>
+                <ui:Button Content="Reset" Command="{Binding ResetCommand}" />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <ui:Button Content="◀ Back" Command="{Binding BackCommand}" Margin="0,0,8,0"
+                           Visibility="{Binding IsStep2, Converter={StaticResource BoolToVis}}" />
+                <ui:Button Content="Next ▶" Appearance="Primary" Command="{Binding NextCommand}" MinWidth="120"
+                           Visibility="{Binding IsStep1, Converter={StaticResource BoolToVis}}" />
+                <ui:Button Content="Forge item" Appearance="Primary" Command="{Binding ForgeCommand}" MinWidth="120"
+                           Visibility="{Binding IsStep2, Converter={StaticResource BoolToVis}}">
+                    <ui:Button.Icon><ui:SymbolIcon Symbol="Add24" /></ui:Button.Icon>
+                </ui:Button>
+            </StackPanel>
+        </DockPanel>
+
+        <!-- Step content -->
+        <Grid>
+            <!-- ===== Step 1: server side ===== -->
+            <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,0,8,0"
+                          Visibility="{Binding IsStep1, Converter={StaticResource BoolToVis}}">
+                <StackPanel TextElement.FontSize="12" MaxWidth="600" HorizontalAlignment="Left">
+                    <ui:Card Padding="14,12" Margin="0,0,0,10">
+                        <StackPanel>
+                            <TextBlock Text="Identity" FontWeight="SemiBold" Opacity="0.7" Margin="0,0,0,8" />
+
+                            <TextBlock Text="Display name" Opacity="0.85" Margin="0,0,0,2" />
+                            <Grid Margin="0,0,0,8">
+                                <ui:TextBox Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" PlaceholderText="e.g. Crown of Valor" />
+                                <ui:Button HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,4,0"
+                                           Appearance="Transparent" MinWidth="0" Padding="4,2"
+                                           Command="{Binding FillAegisFromNameCommand}" ToolTip="Generate aegis name from this">
+                                    <ui:Button.Icon><ui:SymbolIcon Symbol="Sparkle24" FontSize="14" /></ui:Button.Icon>
+                                </ui:Button>
+                            </Grid>
+
+                            <TextBlock Text="Aegis name (server id, no spaces)" Opacity="0.85" Margin="0,0,0,2" />
+                            <Grid Margin="0,0,0,8">
+                                <ui:TextBox Text="{Binding AegisName, UpdateSourceTrigger=PropertyChanged}" PlaceholderText="Crown_Of_Valor" />
+                                <ui:Button HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,4,0"
+                                           Appearance="Transparent" MinWidth="0" Padding="4,2"
+                                           Command="{Binding FillNameFromAegisCommand}" ToolTip="Fill display name from this">
+                                    <ui:Button.Icon><ui:SymbolIcon Symbol="Sparkle24" FontSize="14" /></ui:Button.Icon>
+                                </ui:Button>
+                            </Grid>
+
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="12" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="Type" Opacity="0.85" Margin="0,0,0,2" />
+                                    <ComboBox ItemsSource="{Binding Types}" SelectedItem="{Binding Type}" HorizontalAlignment="Stretch" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Text="Slots" Opacity="0.85" Margin="0,0,0,2" />
+                                    <ui:TextBox Text="{Binding Slots, UpdateSourceTrigger=PropertyChanged}" Width="70" />
+                                </StackPanel>
+                            </Grid>
+                        </StackPanel>
+                    </ui:Card>
+
+                    <ui:Card Padding="14,12" Margin="0,0,0,10">
+                        <StackPanel>
+                            <TextBlock Text="Equip &amp; sprite" FontWeight="SemiBold" Opacity="0.7" Margin="0,0,0,8" />
+                            <TextBlock Text="Equip location" Opacity="0.85" Margin="0,0,0,2" />
+                            <ComboBox ItemsSource="{Binding Locations}" SelectedItem="{Binding SelectedLocation}"
+                                      DisplayMemberPath="Label" HorizontalAlignment="Stretch" Margin="0,0,0,8" />
+
+                            <StackPanel Visibility="{Binding IsHeadgear, Converter={StaticResource BoolToVis}}">
+                                <TextBlock Text="Headgear sprite name (auto-allocates the View id)" Opacity="0.85" Margin="0,0,0,2" />
+                                <ui:TextBox Text="{Binding SpriteName, UpdateSourceTrigger=PropertyChanged}" PlaceholderText="crown_valor" />
+                                <TextBlock Opacity="0.55" FontSize="11" TextWrapping="Wrap" Margin="0,4,0,0"
+                                           Text="Registers an ACCESSORY_ID in accessoryid.lub / accname.lub (loose files) and sets the item's View." />
+                            </StackPanel>
+                        </StackPanel>
+                    </ui:Card>
+
+                    <ui:Card Padding="14,12">
+                        <StackPanel>
+                            <TextBlock Text="Stats, requirements &amp; script" FontWeight="SemiBold" Opacity="0.7" Margin="0,0,0,8" />
+                            <UniformGrid Columns="3">
+                                <StackPanel Margin="0,0,10,8"><TextBlock Text="Buy (z)" Opacity="0.8" FontSize="11" Margin="0,0,0,2" />
+                                    <ui:TextBox Text="{Binding Buy, UpdateSourceTrigger=LostFocus}" /></StackPanel>
+                                <StackPanel Margin="0,0,10,8"><TextBlock Text="Sell (z)" Opacity="0.8" FontSize="11" Margin="0,0,0,2" />
+                                    <ui:TextBox Text="{Binding Sell, UpdateSourceTrigger=LostFocus}" /></StackPanel>
+                                <StackPanel Margin="0,0,0,8"><TextBlock Text="Weight" Opacity="0.8" FontSize="11" Margin="0,0,0,2" />
+                                    <ui:TextBox Text="{Binding Weight, UpdateSourceTrigger=LostFocus}" /></StackPanel>
+                                <StackPanel Margin="0,0,10,8"><TextBlock Text="Attack" Opacity="0.8" FontSize="11" Margin="0,0,0,2" />
+                                    <ui:TextBox Text="{Binding Attack, UpdateSourceTrigger=LostFocus}" /></StackPanel>
+                                <StackPanel Margin="0,0,10,8"><TextBlock Text="Magic Atk" Opacity="0.8" FontSize="11" Margin="0,0,0,2" />
+                                    <ui:TextBox Text="{Binding MagicAttack, UpdateSourceTrigger=LostFocus}" /></StackPanel>
+                                <StackPanel Margin="0,0,0,8"><TextBlock Text="Defense" Opacity="0.8" FontSize="11" Margin="0,0,0,2" />
+                                    <ui:TextBox Text="{Binding Defense, UpdateSourceTrigger=LostFocus}" /></StackPanel>
+                                <StackPanel Margin="0,0,10,8"><TextBlock Text="Range" Opacity="0.8" FontSize="11" Margin="0,0,0,2" />
+                                    <ui:TextBox Text="{Binding Range, UpdateSourceTrigger=LostFocus}" /></StackPanel>
+                                <StackPanel Margin="0,0,10,8"><TextBlock Text="Weapon Lv" Opacity="0.8" FontSize="11" Margin="0,0,0,2" />
+                                    <ui:TextBox Text="{Binding WeaponLevel, UpdateSourceTrigger=LostFocus}" /></StackPanel>
+                                <StackPanel Margin="0,0,0,8"><TextBlock Text="Req. Level" Opacity="0.8" FontSize="11" Margin="0,0,0,2" />
+                                    <ui:TextBox Text="{Binding EquipLevelMin, UpdateSourceTrigger=LostFocus}" /></StackPanel>
+                            </UniformGrid>
+
+                            <ui:ToggleSwitch Content="Refineable" IsChecked="{Binding Refineable}" Margin="0,2,0,8" />
+
+                            <TextBlock Text="Bonus script (optional)" Opacity="0.85" Margin="0,0,0,2" />
+                            <ui:TextBox Text="{Binding Script, UpdateSourceTrigger=LostFocus}" AcceptsReturn="True"
+                                        MinHeight="70" MaxHeight="140" FontFamily="Consolas" VerticalScrollBarVisibility="Auto"
+                                        PlaceholderText="bonus bStr,3;" />
+                        </StackPanel>
+                    </ui:Card>
+                </StackPanel>
+            </ScrollViewer>
+
+            <!-- ===== Step 2: client side (top-aligned, like step 1) ===== -->
+            <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,0,8,0"
+                          Visibility="{Binding IsStep2, Converter={StaticResource BoolToVis}}">
+                <Grid VerticalAlignment="Top">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="3*" MinWidth="320" />
+                        <ColumnDefinition Width="16" />
+                        <ColumnDefinition Width="2*" MinWidth="260" />
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0">
+                        <ui:Card Padding="14,12" TextElement.FontSize="12">
+                            <StackPanel>
+                                <TextBlock Text="Client appearance" FontWeight="SemiBold" Opacity="0.7" Margin="0,0,0,8" />
+                                <TextBlock Opacity="0.55" FontSize="11" Margin="0,0,0,8"
+                                           Text="{Binding Name, StringFormat='Display name in-game: {0}'}" />
+
+                                <TextBlock Text="Icon resource name (the .bmp base name)" Opacity="0.85" Margin="0,0,0,2" />
+                                <ui:TextBox Text="{Binding IconResource, UpdateSourceTrigger=PropertyChanged}"
+                                            PlaceholderText="crown_valor" Margin="0,0,0,8" />
+
+                                <TextBlock Text="Description" Opacity="0.85" Margin="0,0,0,2" />
+                                <ui:TextBox Text="{Binding Description, UpdateSourceTrigger=LostFocus}" AcceptsReturn="True"
+                                            MinHeight="100" MaxHeight="180" FontFamily="Consolas"
+                                            VerticalScrollBarVisibility="Auto" Margin="0,0,0,8" />
+
+                                <ui:ToggleSwitch Content="Costume" IsChecked="{Binding Costume}" />
+                            </StackPanel>
+                        </ui:Card>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="2">
+                        <ui:Card Padding="14,12" Margin="0,0,0,10">
+                            <StackPanel>
+                                <TextBlock Text="Preview" FontWeight="SemiBold" Opacity="0.7" Margin="0,0,0,10" />
+                                <StackPanel Orientation="Horizontal">
+                                    <StackPanel Margin="0,0,16,0">
+                                        <Border Width="80" Height="80" CornerRadius="6" Background="#22000000" BorderBrush="#22FFFFFF" BorderThickness="1">
+                                            <Image Source="{Binding IconImage}" Stretch="None" RenderOptions.BitmapScalingMode="NearestNeighbor" />
+                                        </Border>
+                                        <TextBlock Text="Icon" Opacity="0.5" FontSize="11" HorizontalAlignment="Center" Margin="0,4,0,0" />
+                                    </StackPanel>
+                                    <StackPanel>
+                                        <Border Width="120" Height="80" CornerRadius="6" Background="#22000000" BorderBrush="#22FFFFFF" BorderThickness="1">
+                                            <Image Source="{Binding CollectionImage}" Stretch="Uniform" RenderOptions.BitmapScalingMode="NearestNeighbor" Margin="2" />
+                                        </Border>
+                                        <TextBlock Text="Collection" Opacity="0.5" FontSize="11" HorizontalAlignment="Center" Margin="0,4,0,0" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </StackPanel>
+                        </ui:Card>
+
+                        <ui:Card Padding="14,12">
+                            <StackPanel>
+                                <TextBlock Text="Readiness" FontWeight="SemiBold" Opacity="0.7" Margin="0,0,0,8" />
+                                <ItemsControl ItemsSource="{Binding Checklist}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <StackPanel Orientation="Horizontal" Margin="0,3">
+                                                <Border Width="8" Height="8" CornerRadius="4" Margin="0,4,8,0" VerticalAlignment="Top">
+                                                    <Border.Style>
+                                                        <Style TargetType="Border">
+                                                            <Setter Property="Background" Value="#8893A0" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding State}" Value="ok">
+                                                                    <Setter Property="Background" Value="#5AD27A" />
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding State}" Value="warn">
+                                                                    <Setter Property="Background" Value="#E0A030" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Border.Style>
+                                                </Border>
+                                                <TextBlock Text="{Binding Text}" TextWrapping="Wrap" FontSize="12" Opacity="0.9" />
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </ui:Card>
+                    </StackPanel>
+                </Grid>
+            </ScrollViewer>
+        </Grid>
+    </DockPanel>
+</UserControl>

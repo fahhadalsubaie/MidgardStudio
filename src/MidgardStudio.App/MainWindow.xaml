@@ -1,0 +1,347 @@
+<ui:FluentWindow x:Class="MidgardStudio.App.MainWindow"
+                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+                 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+                 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                 xmlns:vm="clr-namespace:MidgardStudio.App.ViewModels"
+                 xmlns:views="clr-namespace:MidgardStudio.App.Views"
+                 mc:Ignorable="d"
+                 d:DataContext="{d:DesignInstance Type=vm:ShellViewModel}"
+                 Title="Midgard Studio"
+                 Icon="/Assets/logo.png"
+                 Width="1320" Height="860"
+                 MinWidth="980" MinHeight="640"
+                 WindowBackdropType="Mica"
+                 ExtendsContentIntoTitleBar="True"
+                 WindowStartupLocation="CenterScreen">
+
+    <ui:FluentWindow.Resources>
+        <!-- Editable database workspace -->
+        <DataTemplate DataType="{x:Type vm:DbWorkspaceViewModel}">
+            <views:DbWorkspaceView />
+        </DataTemplate>
+
+        <!-- GRF browser -->
+        <DataTemplate DataType="{x:Type vm:GrfBrowserViewModel}">
+            <views:GrfBrowserView />
+        </DataTemplate>
+
+        <!-- Client items editor -->
+        <DataTemplate DataType="{x:Type vm:ClientItemsViewModel}">
+            <views:ClientItemsView />
+        </DataTemplate>
+
+        <!-- Configuration wizard -->
+        <DataTemplate DataType="{x:Type vm:ConfigurationWizardViewModel}">
+            <views:ConfigurationWizardView />
+        </DataTemplate>
+
+        <!-- Backup manager -->
+        <DataTemplate DataType="{x:Type vm:BackupManagerViewModel}">
+            <views:BackupManagerView />
+        </DataTemplate>
+
+        <!-- Item Forge -->
+        <DataTemplate DataType="{x:Type vm:ForgeViewModel}">
+            <views:ForgeView />
+        </DataTemplate>
+
+        <!-- Settings -->
+        <DataTemplate DataType="{x:Type vm:SettingsViewModel}">
+            <views:SettingsView />
+        </DataTemplate>
+
+        <!-- Map cache editor -->
+        <DataTemplate DataType="{x:Type vm:MapCacheEditorViewModel}">
+            <views:MapCacheEditorView />
+        </DataTemplate>
+
+        <!-- Placeholder for sections whose editor lands in a later phase -->
+        <DataTemplate DataType="{x:Type vm:DbSectionViewModel}">
+            <ui:Card>
+                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="560">
+                    <ui:SymbolIcon Symbol="{Binding Icon}" FontSize="52" HorizontalAlignment="Center" Opacity="0.55" />
+                    <TextBlock Text="{Binding Title}" FontSize="24" FontWeight="SemiBold"
+                               HorizontalAlignment="Center" Margin="0,14,0,6" />
+                    <TextBlock Text="{Binding Description}" Opacity="0.7" TextWrapping="Wrap"
+                               TextAlignment="Center" HorizontalAlignment="Center" />
+                    <Border Margin="0,16,0,0" Padding="10,6" CornerRadius="6" Background="#22000000"
+                            HorizontalAlignment="Center">
+                        <TextBlock Text="{Binding FilePath}" Opacity="0.6" FontFamily="Consolas"
+                                   TextWrapping="Wrap" TextAlignment="Center" />
+                    </Border>
+                    <TextBlock Text="Editor coming online in a later phase." Opacity="0.45"
+                               HorizontalAlignment="Center" Margin="0,16,0,0" FontStyle="Italic" />
+                </StackPanel>
+            </ui:Card>
+        </DataTemplate>
+    </ui:FluentWindow.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <ui:TitleBar Grid.Row="0" Title="Midgard Studio">
+            <ui:TitleBar.Icon>
+                <ui:ImageIcon Source="/Assets/logo.png" Width="20" Height="20" />
+            </ui:TitleBar.Icon>
+        </ui:TitleBar>
+
+        <!-- ===== Top menu bar (replaces the old top-right icon cluster) ===== -->
+        <Border Grid.Row="1" Padding="6,1" BorderBrush="#1AFFFFFF" BorderThickness="0,0,0,1">
+            <Grid>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Center">
+                <Menu VerticalAlignment="Center" Background="Transparent">
+                    <MenuItem Header="_File">
+                        <MenuItem Header="_Forge new item…" Command="{Binding OpenForgeCommand}"
+                                  ToolTip="Create a complete custom item (server + client + sprite) in one flow">
+                            <MenuItem.Icon><ui:SymbolIcon Symbol="Add24" /></MenuItem.Icon>
+                        </MenuItem>
+                        <Separator />
+                        <MenuItem Header="_Save" InputGestureText="Ctrl+S" Command="{Binding SaveCommand}"
+                                  ToolTip="Write pending changes (only modified files are rewritten)">
+                            <MenuItem.Icon><ui:SymbolIcon Symbol="Save24" /></MenuItem.Icon>
+                        </MenuItem>
+                        <Separator />
+                        <MenuItem Header="Reveal _import folder" Command="{Binding RevealImportFolderCommand}">
+                            <MenuItem.Icon><ui:SymbolIcon Symbol="Folder24" /></MenuItem.Icon>
+                        </MenuItem>
+                        <MenuItem Header="Open client _lua folder" Command="{Binding OpenLuaFolderCommand}">
+                            <MenuItem.Icon><ui:SymbolIcon Symbol="Folder24" /></MenuItem.Icon>
+                        </MenuItem>
+                        <MenuItem Header="_Reload Database" Command="{Binding ReloadDataCommand}">
+                            <MenuItem.Icon><ui:SymbolIcon Symbol="ArrowClockwise24" /></MenuItem.Icon>
+                        </MenuItem>
+                        <Separator />
+                        <MenuItem Header="_Profiles &amp; configuration…" InputGestureText="Ctrl+," Command="{Binding OpenWizardCommand}">
+                            <MenuItem.Icon><ui:SymbolIcon Symbol="Settings24" /></MenuItem.Icon>
+                        </MenuItem>
+                        <MenuItem Header="S_witch profile" ItemsSource="{Binding Profiles}">
+                            <MenuItem.ItemContainerStyle>
+                                <Style TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}">
+                                    <Setter Property="Header" Value="{Binding Name}" />
+                                    <Setter Property="IsChecked" Value="{Binding IsActive, Mode=OneWay}" />
+                                    <Setter Property="IsCheckable" Value="False" />
+                                    <Setter Property="InputGestureText" Value="{Binding ModeText}" />
+                                    <Setter Property="Command"
+                                            Value="{Binding DataContext.SwitchProfileCommand, RelativeSource={RelativeSource AncestorType=Menu}}" />
+                                    <Setter Property="CommandParameter" Value="{Binding}" />
+                                </Style>
+                            </MenuItem.ItemContainerStyle>
+                        </MenuItem>
+                        <Separator />
+                        <MenuItem Header="Se_ttings" Command="{Binding OpenSettingsCommand}">
+                            <MenuItem.Icon><ui:SymbolIcon Symbol="Settings24" /></MenuItem.Icon>
+                        </MenuItem>
+                        <Separator />
+                        <MenuItem Header="E_xit" Command="{Binding ExitCommand}" />
+                    </MenuItem>
+
+                    <MenuItem Header="_Edit">
+                        <MenuItem Header="_Undo" InputGestureText="Ctrl+Z" Command="{Binding UndoCommand}">
+                            <MenuItem.Icon><ui:SymbolIcon Symbol="ArrowUndo24" /></MenuItem.Icon>
+                        </MenuItem>
+                        <MenuItem Header="_Redo" InputGestureText="Ctrl+Y" Command="{Binding RedoCommand}">
+                            <MenuItem.Icon><ui:SymbolIcon Symbol="ArrowRedo24" /></MenuItem.Icon>
+                        </MenuItem>
+                        <Separator />
+                        <MenuItem Header="_Quick open…" InputGestureText="Ctrl+K" Command="{Binding OpenPaletteCommand}" />
+                    </MenuItem>
+
+                    <MenuItem Header="_View">
+                        <MenuItem Header="_Go to">
+                            <MenuItem Header="Server Items" Command="{Binding GoSectionCommand}" CommandParameter="items" />
+                            <MenuItem Header="Client Items" Command="{Binding GoSectionCommand}" CommandParameter="client_items" />
+                            <MenuItem Header="Mobs" Command="{Binding GoSectionCommand}" CommandParameter="mobs" />
+                            <MenuItem Header="Pets" Command="{Binding GoSectionCommand}" CommandParameter="pets" />
+                            <MenuItem Header="Skills" Command="{Binding GoSectionCommand}" CommandParameter="skills" />
+                            <MenuItem Header="Item Combos" Command="{Binding GoSectionCommand}" CommandParameter="combos" />
+                            <MenuItem Header="Item Groups" Command="{Binding GoSectionCommand}" CommandParameter="groups" />
+                        </MenuItem>
+                        <Separator />
+                        <MenuItem Header="_System">
+                            <MenuItem Header="Renewal" IsCheckable="False" Command="{Binding EnableRenewalCommand}"
+                                      IsChecked="{Binding IsRenewal, Mode=OneWay}" />
+                            <MenuItem Header="Pre-Renewal" IsCheckable="False" Command="{Binding EnablePreRenewalCommand}"
+                                      IsChecked="{Binding IsRenewal, Converter={StaticResource InverseBool}, Mode=OneWay}" />
+                        </MenuItem>
+                    </MenuItem>
+
+                    <MenuItem Header="_Tools">
+                        <MenuItem Header="_GRF Browser" Command="{Binding GoSectionCommand}" CommandParameter="grf">
+                            <MenuItem.Icon><ui:SymbolIcon Symbol="FolderZip24" /></MenuItem.Icon>
+                        </MenuItem>
+                        <MenuItem Header="_Validation" Command="{Binding GoSectionCommand}" CommandParameter="validation">
+                            <MenuItem.Icon><ui:SymbolIcon Symbol="Checkmark24" /></MenuItem.Icon>
+                        </MenuItem>
+                        <MenuItem Header="_Map Cache Editor" Command="{Binding OpenMapCacheEditorCommand}">
+                            <MenuItem.Icon><ui:SymbolIcon Symbol="Map24" /></MenuItem.Icon>
+                        </MenuItem>
+                        <Separator />
+                        <MenuItem Header="_Backup Manager" Command="{Binding OpenBackupManagerCommand}">
+                            <MenuItem.Icon><ui:SymbolIcon Symbol="Save24" /></MenuItem.Icon>
+                        </MenuItem>
+                    </MenuItem>
+
+                    <MenuItem Header="_Help">
+                        <MenuItem Header="_Documentation" Command="{Binding OpenDocsCommand}">
+                            <MenuItem.Icon><ui:SymbolIcon Symbol="Open24" /></MenuItem.Icon>
+                        </MenuItem>
+                        <MenuItem Header="_About Midgard Studio" Command="{Binding AboutCommand}">
+                            <MenuItem.Icon><Image Source="/Assets/logo.png" Width="16" Height="16" /></MenuItem.Icon>
+                        </MenuItem>
+                    </MenuItem>
+                </Menu>
+
+                    <!-- Active profile chip (right after Help) -->
+                    <Border Background="#18FFFFFF" CornerRadius="4" Padding="9,0" Height="26" Margin="12,0,0,0" VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <ui:SymbolIcon Symbol="Person24" FontSize="13" Opacity="0.6" Margin="0,0,6,0" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding ActiveProfileName}" FontSize="12" VerticalAlignment="Center" Opacity="0.9"
+                                       ToolTip="Active profile" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Save status chip: pulsing green (saved) / red (unsaved) dot + text -->
+                    <Border Background="#18FFFFFF" CornerRadius="4" Padding="9,0" Height="26" Margin="6,0,0,0" VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Ellipse Width="9" Height="9" Margin="0,0,7,0" VerticalAlignment="Center">
+                                <Ellipse.Style>
+                                    <Style TargetType="Ellipse">
+                                        <Setter Property="Fill" Value="#4FD17A" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsModified}" Value="True">
+                                                <Setter Property="Fill" Value="#E0584F" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Ellipse.Style>
+                                <Ellipse.Triggers>
+                                    <EventTrigger RoutedEvent="Loaded">
+                                        <BeginStoryboard>
+                                            <Storyboard RepeatBehavior="Forever" AutoReverse="True">
+                                                <DoubleAnimation Storyboard.TargetProperty="Opacity" From="1" To="0.2" Duration="0:0:0.9" />
+                                            </Storyboard>
+                                        </BeginStoryboard>
+                                    </EventTrigger>
+                                </Ellipse.Triggers>
+                            </Ellipse>
+                            <TextBlock VerticalAlignment="Center" FontSize="12" Opacity="0.9">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Text" Value="No changes" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsModified}" Value="True">
+                                                <Setter Property="Text" Value="Unsaved changes" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <!-- Right: record actions for the active entry + Save -->
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center"
+                                Visibility="{Binding ActiveWorkspace.Editor.HasRecord, Converter={StaticResource BoolToVis}, FallbackValue=Collapsed}">
+                        <ui:Button Content="YAML" Command="{Binding ActiveWorkspace.ShowYamlCommand}" Margin="0,0,6,0"
+                                   ToolTip="Preview the YAML written to the import file" />
+                        <ui:Button Content="Create override to edit" Appearance="Primary"
+                                   Command="{Binding ActiveWorkspace.Editor.CreateOverrideCommand}"
+                                   Visibility="{Binding ActiveWorkspace.Editor.IsEditable, Converter={StaticResource BoolToVis}, ConverterParameter=invert, FallbackValue=Collapsed}" />
+                        <Border Width="1" Height="18" Background="#22FFFFFF" Margin="8,0" />
+                    </StackPanel>
+                    <ui:Button Content="Save" Appearance="Primary" Command="{Binding SaveCommand}"
+                               ToolTip="Write pending changes (Ctrl+S) — only modified files are rewritten">
+                        <ui:Button.Icon><ui:SymbolIcon Symbol="Save24" /></ui:Button.Icon>
+                    </ui:Button>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="248" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <!-- Navigation rail -->
+            <Border Grid.Column="0" Padding="8,4,8,8">
+                <ListBox ItemsSource="{Binding Sections}"
+                         SelectedItem="{Binding SelectedSection, Mode=TwoWay}"
+                         Background="Transparent" BorderThickness="0"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                    <ListBox.ItemContainerStyle>
+                        <Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
+                            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                            <Setter Property="Padding" Value="8,6" />
+                            <Setter Property="Margin" Value="0,1" />
+                        </Style>
+                    </ListBox.ItemContainerStyle>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate DataType="{x:Type vm:DbSectionViewModel}">
+                            <StackPanel Orientation="Horizontal">
+                                <ui:SymbolIcon Symbol="{Binding Icon}" FontSize="18" Margin="2,0,12,0" />
+                                <TextBlock Text="{Binding Title}" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Border>
+
+            <!-- Content area (section breadcrumb + actions now live in the top bar) -->
+            <ContentControl Grid.Column="1" Margin="12,6,16,16" Content="{Binding CurrentContent}" />
+        </Grid>
+
+        <!-- Command palette overlay (Ctrl+K) -->
+        <Border Grid.Row="0" Grid.RowSpan="3" Background="#99000000"
+                Visibility="{Binding IsPaletteOpen, Converter={StaticResource BoolToVis}}">
+            <Border.InputBindings>
+                <KeyBinding Key="Escape" Command="{Binding ClosePaletteCommand}" />
+            </Border.InputBindings>
+            <ui:Card Width="660" MaxHeight="460" VerticalAlignment="Top" HorizontalAlignment="Center" Margin="0,90,0,0">
+                <DockPanel>
+                    <ui:TextBox x:Name="PaletteSearchBox" DockPanel.Dock="Top"
+                                PlaceholderText="Quick open — search loaded databases by id / aegis / name…"
+                                Text="{Binding PaletteQuery, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,8" />
+                    <ListBox x:Name="PaletteResultsBox" ItemsSource="{Binding PaletteResults}" MaxHeight="380">
+                        <ListBox.InputBindings>
+                            <KeyBinding Key="Enter" Command="{Binding ActivatePaletteResultCommand}"
+                                        CommandParameter="{Binding SelectedItem, RelativeSource={RelativeSource AncestorType=ListBox}}" />
+                        </ListBox.InputBindings>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate DataType="{x:Type vm:PaletteResultViewModel}">
+                                <StackPanel Orientation="Horizontal" Margin="0,2">
+                                    <Border Background="#33FFFFFF" CornerRadius="3" Padding="6,1" Margin="0,0,8,0">
+                                        <TextBlock Text="{Binding Database}" FontSize="10" />
+                                    </Border>
+                                    <TextBlock Text="{Binding Display}" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+            </ui:Card>
+        </Border>
+
+        <!-- Configuration wizard (first run / profile management) — gates the shell.
+             Fully opaque so it stays readable over the Mica backdrop / desktop. -->
+        <Border Grid.Row="1" Grid.RowSpan="2" Background="#FF14141A"
+                Visibility="{Binding ShowWizard, Converter={StaticResource BoolToVis}}">
+            <Border Margin="20" CornerRadius="8" Background="#FF1E1E26"
+                    BorderBrush="#22FFFFFF" BorderThickness="1" Padding="20">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Top" Text="Midgard Studio  ·  Configuration"
+                               FontSize="24" FontWeight="SemiBold" Margin="0,0,0,14" />
+                    <ContentControl Content="{Binding Wizard}" />
+                </DockPanel>
+            </Border>
+        </Border>
+    </Grid>
+</ui:FluentWindow>

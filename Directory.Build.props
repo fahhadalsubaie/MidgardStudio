@@ -1,0 +1,19 @@
+<Project>
+
+  <!-- Shared settings for all MidgardStudio first-party projects.
+       Vendored (third-party) projects under vendor/ carry their own Directory.Build.props
+       that resets Nullable/ImplicitUsings so their legacy source still compiles. -->
+  <PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Deterministic>true</Deterministic>
+    <Company>Midgard Studio</Company>
+    <Product>Midgard Studio</Product>
+    <NeutralLanguage>en</NeutralLanguage>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <!-- Treat the workspace as the rAthena custom-items repo root by default. -->
+    <MidgardStudioRepoRoot>$(MSBuildThisFileDirectory)..\</MidgardStudioRepoRoot>
+  </PropertyGroup>
+
+</Project>

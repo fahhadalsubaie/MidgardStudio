@@ -1,0 +1,10 @@
+# Normalize line endings: store as LF in the repo, check out native on each OS.
+* text=auto
+
+# Treat these as binary (no EOL conversion, no diff).
+*.png binary
+*.ico binary
+*.bmp binary
+*.grf binary
+*.spr binary
+*.act binary

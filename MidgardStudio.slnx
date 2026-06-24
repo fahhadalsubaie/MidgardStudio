@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/MidgardStudio.App/MidgardStudio.App.csproj" />
+    <Project Path="src/MidgardStudio.Core/MidgardStudio.Core.csproj" />
+    <Project Path="src/MidgardStudio.Grf/MidgardStudio.Grf.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/MidgardStudio.Tests/MidgardStudio.Tests.csproj" />
+  </Folder>
+</Solution>

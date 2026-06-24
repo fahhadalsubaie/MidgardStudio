@@ -1,0 +1,762 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                    xmlns:avalon="http://icsharpcode.net/sharpdevelop/avalonedit"
+                    xmlns:common="clr-namespace:MidgardStudio.App.Common"
+                    xmlns:controls="clr-namespace:MidgardStudio.App.Controls"
+                    xmlns:vm="clr-namespace:MidgardStudio.App.ViewModels">
+
+    <!-- Converters live here (a merged dictionary) so both these templates and other views resolve them. -->
+    <common:BoolToVisibilityConverter x:Key="BoolToVis" />
+    <common:InverseBoolConverter x:Key="InverseBool" />
+    <common:StringToBoolConverter x:Key="StringToBool" />
+    <common:StringToVisibilityConverter x:Key="StringToVis" />
+    <common:NotNullToVisibilityConverter x:Key="NotNullToVis" />
+    <common:OriginToBrushConverter x:Key="OriginBrush" />
+    <common:OriginToLabelConverter x:Key="OriginLabel" />
+    <common:FileNameConverter x:Key="FileName" />
+    <common:CountToVisibilityConverter x:Key="CountToVis" />
+    <common:BoolToTextWrappingConverter x:Key="BoolToWrap" />
+
+    <Style x:Key="FieldLabel" TargetType="TextBlock">
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Opacity" Value="0.85" />
+        <Setter Property="FontSize" Value="11.5" />
+        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        <Setter Property="Margin" Value="0,0,10,0" />
+        <Setter Property="ToolTip" Value="{Binding Description}" />
+    </Style>
+
+    <!-- Shared outlined "field box" so every field (scalar input or wide summary) looks identical. -->
+    <Style x:Key="FieldBox" TargetType="Border">
+        <Setter Property="BorderBrush" Value="#26FFFFFF" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="4" />
+        <Setter Property="Background" Value="#0AFFFFFF" />
+        <Setter Property="Padding" Value="6,0" />
+        <Setter Property="MinHeight" Value="26" />
+        <Style.Triggers>
+            <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                <Setter Property="BorderBrush" Value="#5CFFFFFF" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <!-- Bare text input: no border/background/underline of its own — the FieldBox supplies all chrome,
+         so a scalar field is pixel-identical to a wide (bordered "…") field. -->
+    <Style x:Key="FieldInputText" TargetType="{x:Type TextBox}">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        <Setter Property="CaretBrush" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type TextBox}">
+                    <ScrollViewer x:Name="PART_ContentHost" Focusable="False"
+                                  HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Hidden" />
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+        <Style.Triggers>
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Opacity" Value="0.5" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <!-- The editable text portion inside FieldComboBox -->
+    <ControlTemplate x:Key="FieldComboBoxTextBox" TargetType="{x:Type TextBox}">
+        <ScrollViewer x:Name="PART_ContentHost" Focusable="False"
+                      HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Hidden" />
+    </ControlTemplate>
+
+    <!-- Bare editable combo: only a chevron + the dropdown popup; the FieldBox supplies the border. -->
+    <Style x:Key="FieldComboBox" TargetType="{x:Type ComboBox}">
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="IsEditable" Value="True" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type ComboBox}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <ContentPresenter x:Name="ContentSite" Grid.Column="0"
+                                          Content="{TemplateBinding SelectionBoxItem}"
+                                          ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                          ContentTemplateSelector="{TemplateBinding ItemTemplateSelector}"
+                                          IsHitTestVisible="False" VerticalAlignment="Center"
+                                          HorizontalAlignment="Left" Margin="0,0,4,0" />
+
+                        <TextBox x:Name="PART_EditableTextBox" Grid.Column="0"
+                                 Template="{StaticResource FieldComboBoxTextBox}"
+                                 Background="Transparent" BorderThickness="0" Padding="0" Margin="0,0,4,0"
+                                 Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                                 CaretBrush="{DynamicResource TextFillColorPrimaryBrush}"
+                                 VerticalAlignment="Center" VerticalContentAlignment="Center"
+                                 IsReadOnly="{TemplateBinding IsReadOnly}" Focusable="True" Visibility="Hidden" />
+
+                        <ToggleButton x:Name="DropToggle" Grid.Column="1" Focusable="False" ClickMode="Press"
+                                      IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}">
+                            <ToggleButton.Template>
+                                <ControlTemplate TargetType="{x:Type ToggleButton}">
+                                    <Border Background="Transparent" Padding="2,0,0,0">
+                                        <Path Data="M 0 0 L 4 4 L 8 0 Z" VerticalAlignment="Center"
+                                              Fill="{DynamicResource TextFillColorSecondaryBrush}" />
+                                    </Border>
+                                </ControlTemplate>
+                            </ToggleButton.Template>
+                        </ToggleButton>
+
+                        <Popup x:Name="PART_Popup" Grid.Column="0" Placement="Bottom" AllowsTransparency="True"
+                               IsOpen="{TemplateBinding IsDropDownOpen}" Focusable="False" PopupAnimation="Slide"
+                               MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}">
+                            <Border Background="#FF26262E" BorderBrush="#40FFFFFF" BorderThickness="1" CornerRadius="4"
+                                    Margin="0,2,0,4" SnapsToDevicePixels="True" MaxHeight="{TemplateBinding MaxDropDownHeight}">
+                                <ScrollViewer>
+                                    <ItemsPresenter SnapsToDevicePixels="True"
+                                                    KeyboardNavigation.DirectionalNavigation="Contained" />
+                                </ScrollViewer>
+                            </Border>
+                        </Popup>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsEditable" Value="True">
+                            <Setter TargetName="PART_EditableTextBox" Property="Visibility" Value="Visible" />
+                            <Setter TargetName="ContentSite" Property="Visibility" Value="Collapsed" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.5" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Int -->
+    <DataTemplate DataType="{x:Type vm:IntFieldEditorViewModel}">
+        <Grid Margin="0,2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="140" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Text="{Binding Label}" Style="{StaticResource FieldLabel}" />
+            <Border Grid.Column="1" Style="{StaticResource FieldBox}">
+                <TextBox Text="{Binding Value, UpdateSourceTrigger=LostFocus}" IsEnabled="{Binding IsEditable}"
+                         Style="{StaticResource FieldInputText}" />
+            </Border>
+        </Grid>
+    </DataTemplate>
+
+    <!-- LevelInt (dual: a single number, or per-level "1:3, 2:5") -->
+    <DataTemplate DataType="{x:Type vm:LevelIntFieldEditorViewModel}">
+        <Grid Margin="0,2" ToolTip="{Binding Hint}">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="140" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Text="{Binding Label}" Style="{StaticResource FieldLabel}" />
+            <Border Grid.Column="1" Style="{StaticResource FieldBox}">
+                <TextBox Text="{Binding Value, UpdateSourceTrigger=LostFocus}" IsEnabled="{Binding IsEditable}"
+                         Style="{StaticResource FieldInputText}" />
+            </Border>
+        </Grid>
+    </DataTemplate>
+
+    <!-- String -->
+    <DataTemplate DataType="{x:Type vm:StringFieldEditorViewModel}">
+        <Grid Margin="0,2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="140" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Text="{Binding Label}" Style="{StaticResource FieldLabel}" />
+            <Border Grid.Column="1" Style="{StaticResource FieldBox}">
+                <TextBox Text="{Binding Value, UpdateSourceTrigger=LostFocus}" IsEnabled="{Binding IsEditable}"
+                         Style="{StaticResource FieldInputText}" />
+            </Border>
+        </Grid>
+    </DataTemplate>
+
+    <!-- Name / AegisName with an inline auto-fill button that generates the sibling field. -->
+    <DataTemplate DataType="{x:Type vm:CoupledNameFieldEditorViewModel}">
+        <Grid Margin="0,2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="140" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Text="{Binding Label}" Style="{StaticResource FieldLabel}" />
+            <Border Grid.Column="1" Style="{StaticResource FieldBox}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBox Text="{Binding Value, UpdateSourceTrigger=LostFocus}" IsEnabled="{Binding IsEditable}"
+                             Style="{StaticResource FieldInputText}" />
+                    <ui:Button Grid.Column="1" Appearance="Transparent" Padding="2,0" Margin="2,0,-2,0" MinWidth="0"
+                               Command="{Binding SyncCommand}" ToolTip="{Binding SyncTooltip}" IsEnabled="{Binding IsEditable}">
+                        <ui:Button.Icon><ui:SymbolIcon Symbol="Sparkle24" FontSize="13" /></ui:Button.Icon>
+                    </ui:Button>
+                </Grid>
+            </Border>
+        </Grid>
+    </DataTemplate>
+
+    <!-- Bool -->
+    <DataTemplate DataType="{x:Type vm:BoolFieldEditorViewModel}">
+        <Grid Margin="0,2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="140" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Text="{Binding Label}" Style="{StaticResource FieldLabel}" />
+            <ui:ToggleSwitch Grid.Column="1" IsChecked="{Binding Value}" IsEnabled="{Binding IsEditable}" VerticalAlignment="Center" />
+        </Grid>
+    </DataTemplate>
+
+    <!-- Enum -->
+    <DataTemplate DataType="{x:Type vm:EnumFieldEditorViewModel}">
+        <Grid Margin="0,2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="140" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Text="{Binding Label}" Style="{StaticResource FieldLabel}" />
+            <Border Grid.Column="1" Style="{StaticResource FieldBox}">
+                <ComboBox ItemsSource="{Binding Options}" SelectedItem="{Binding Value}" IsEnabled="{Binding IsEditable}"
+                          Style="{StaticResource FieldComboBox}" />
+            </Border>
+        </Grid>
+    </DataTemplate>
+
+    <!-- Reference (autocomplete over another DB) -->
+    <DataTemplate DataType="{x:Type vm:ReferenceFieldEditorViewModel}">
+        <Grid Margin="0,2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="140" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Text="{Binding Label}" Style="{StaticResource FieldLabel}" />
+            <Border Grid.Column="1" Style="{StaticResource FieldBox}">
+                <ComboBox ItemsSource="{Binding Suggestions}"
+                          Text="{Binding Value, UpdateSourceTrigger=LostFocus}" IsEnabled="{Binding IsEditable}"
+                          Style="{StaticResource FieldComboBox}" />
+            </Border>
+        </Grid>
+    </DataTemplate>
+
+    <!-- Each field group is its own card; the two columns stack these cards. -->
+    <DataTemplate DataType="{x:Type vm:FieldGroupViewModel}">
+        <ui:Card Margin="0,0,0,6" Padding="10,5">
+            <StackPanel TextElement.FontSize="11.5">
+                <TextBlock Text="{Binding Title}" FontWeight="SemiBold" Opacity="0.7" FontSize="11.5"
+                           Margin="0,0,0,3" />
+                <ItemsControl ItemsSource="{Binding Fields}" />
+            </StackPanel>
+        </ui:Card>
+    </DataTemplate>
+
+    <!-- Compact "summary + …" row used for every wide field; the … opens its full editor in a popup. -->
+    <DataTemplate DataType="{x:Type vm:BoolMapFieldEditorViewModel}">
+        <Grid Margin="0,2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="140" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Text="{Binding Label}" Style="{StaticResource FieldLabel}" />
+            <Border Grid.Column="1" Style="{StaticResource FieldBox}">
+                <TextBlock Text="{Binding Summary}" Opacity="0.8" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+            </Border>
+            <ui:Button Grid.Column="2" Content="…" MinWidth="28" Padding="0" Margin="4,0,0,0" Command="{Binding OpenEditorCommand}" ToolTip="{Binding Label}" />
+        </Grid>
+    </DataTemplate>
+
+    <DataTemplate DataType="{x:Type vm:ObjectFieldEditorViewModel}">
+        <Grid Margin="0,2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="140" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Text="{Binding Label}" Style="{StaticResource FieldLabel}" />
+            <Border Grid.Column="1" Style="{StaticResource FieldBox}">
+                <TextBlock Text="{Binding Summary}" Opacity="0.8" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+            </Border>
+            <ui:Button Grid.Column="2" Content="…" MinWidth="28" Padding="0" Margin="4,0,0,0" Command="{Binding OpenEditorCommand}" ToolTip="{Binding Label}" />
+        </Grid>
+    </DataTemplate>
+
+    <DataTemplate DataType="{x:Type vm:ObjectListFieldEditorViewModel}">
+        <Grid Margin="0,2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="140" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Text="{Binding Label}" Style="{StaticResource FieldLabel}" />
+            <Border Grid.Column="1" Style="{StaticResource FieldBox}">
+                <TextBlock Text="{Binding Summary}" Opacity="0.8" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+            </Border>
+            <ui:Button Grid.Column="2" Content="…" MinWidth="28" Padding="0" Margin="4,0,0,0" Command="{Binding OpenEditorCommand}" ToolTip="{Binding Label}" />
+        </Grid>
+    </DataTemplate>
+
+    <DataTemplate DataType="{x:Type vm:ScriptFieldEditorViewModel}">
+        <Grid Margin="0,2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="140" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Text="{Binding Label}" Style="{StaticResource FieldLabel}" />
+            <Border Grid.Column="1" Style="{StaticResource FieldBox}">
+                <TextBlock Text="{Binding Summary}" Opacity="0.75" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
+                           FontFamily="Consolas" />
+            </Border>
+            <ui:Button Grid.Column="2" Content="…" MinWidth="28" Padding="0" Margin="4,0,0,0" Command="{Binding OpenEditorCommand}" ToolTip="{Binding Label}" />
+        </Grid>
+    </DataTemplate>
+
+    <!-- ===== Full (popup) editors for wide fields ===== -->
+
+    <DataTemplate x:Key="BoolMapFullTemplate">
+        <ItemsControl ItemsSource="{Binding Chips}" IsEnabled="{Binding IsEditable}">
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                    <ToggleButton Content="{Binding Label}" ToolTip="{Binding Key}" IsChecked="{Binding IsSelected}" Margin="2" Padding="9,4" />
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+    </DataTemplate>
+
+    <DataTemplate x:Key="ObjectFullTemplate">
+        <ItemsControl ItemsSource="{Binding Children}" />
+    </DataTemplate>
+
+    <DataTemplate x:Key="ObjectListFullTemplate">
+        <DockPanel>
+            <ui:Button DockPanel.Dock="Top" HorizontalAlignment="Left" Content="Add" Margin="0,0,0,8"
+                       Command="{Binding AddRowCommand}" IsEnabled="{Binding IsEditable}">
+                <ui:Button.Icon><ui:SymbolIcon Symbol="Add24" /></ui:Button.Icon>
+            </ui:Button>
+            <ItemsControl ItemsSource="{Binding Rows}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border BorderBrush="#22FFFFFF" BorderThickness="0,0,0,1" Padding="0,4">
+                            <DockPanel>
+                                <ui:Button DockPanel.Dock="Right" VerticalAlignment="Top" Content="✕"
+                                           Command="{Binding DataContext.RemoveRowCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                           CommandParameter="{Binding}" />
+                                <ItemsControl ItemsSource="{Binding Cells}" />
+                            </DockPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </DockPanel>
+    </DataTemplate>
+
+    <DataTemplate x:Key="ScriptFullTemplate">
+        <DockPanel MinHeight="360">
+            <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
+                <ui:Button Content="＋ Bonus builder" Command="{Binding InsertBonusCommand}" IsEnabled="{Binding IsEditable}"
+                           ToolTip="Build a bonus statement visually (enum-aware) and append it to the script">
+                    <ui:Button.Icon><ui:SymbolIcon Symbol="Add24" /></ui:Button.Icon>
+                </ui:Button>
+            </StackPanel>
+            <Expander DockPanel.Dock="Right" Header="Bonuses" Width="230" Margin="8,0,0,0">
+                <ListBox ItemsSource="{Binding Catalog.Entries}" FontFamily="Consolas" FontSize="11">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding Token}" ToolTip="{Binding Hint}" />
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Expander>
+            <Border BorderBrush="#33FFFFFF" BorderThickness="1" CornerRadius="4">
+                <avalon:TextEditor common:AvalonEditBehavior.BindableText="{Binding Value, Mode=TwoWay}"
+                                   IsReadOnly="{Binding IsEditable, Converter={StaticResource InverseBool}}"
+                                   ShowLineNumbers="True" FontFamily="Consolas" FontSize="12.5"
+                                   WordWrap="False" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" />
+            </Border>
+        </DockPanel>
+    </DataTemplate>
+
+    <!-- Client item text (itemInfo) editor -->
+    <DataTemplate DataType="{x:Type vm:ClientTextViewModel}">
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Grid.Column="0">
+                <TextBlock Text="{Binding TargetLabel}" Opacity="0.7" FontSize="11" Margin="0,0,0,6" />
+                <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="150"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                    <TextBlock Text="Display Name" VerticalAlignment="Center" Opacity="0.85" />
+                    <ui:TextBox Grid.Column="1" Text="{Binding IdentifiedDisplayName, UpdateSourceTrigger=LostFocus}" />
+                </Grid>
+                <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="150"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                    <TextBlock Text="Resource Name" VerticalAlignment="Center" Opacity="0.85" ToolTip="Sprite/icon base file name" />
+                    <ui:TextBox Grid.Column="1" Text="{Binding IdentifiedResourceName, UpdateSourceTrigger=LostFocus}" />
+                </Grid>
+                <TextBlock Text="Description" Opacity="0.85" Margin="0,6,0,2" />
+                <ui:TextBox Text="{Binding IdentifiedDescription, UpdateSourceTrigger=LostFocus}" AcceptsReturn="True"
+                            MinHeight="80" MaxHeight="160" VerticalScrollBarVisibility="Auto" FontFamily="Consolas" />
+                <Grid Margin="0,6"><Grid.ColumnDefinitions><ColumnDefinition Width="150"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                    <TextBlock Text="Unidentified Name" VerticalAlignment="Center" Opacity="0.85" />
+                    <ui:TextBox Grid.Column="1" Text="{Binding UnidentifiedDisplayName, UpdateSourceTrigger=LostFocus}" />
+                </Grid>
+                <StackPanel Orientation="Horizontal" Margin="0,4">
+                    <TextBlock Text="Slots" VerticalAlignment="Center" Opacity="0.85" Width="60" />
+                    <ui:TextBox Text="{Binding SlotCount, UpdateSourceTrigger=LostFocus}" Width="60" Margin="0,0,16,0" />
+                    <TextBlock Text="ClassNum / View" VerticalAlignment="Center" Opacity="0.85" Width="110" />
+                    <ui:TextBox Text="{Binding ClassNum, UpdateSourceTrigger=LostFocus}" Width="70" Margin="0,0,16,0" />
+                    <ui:ToggleSwitch Content="Costume" IsChecked="{Binding Costume}" />
+                </StackPanel>
+
+                <!-- Headgear sprite linkage -->
+                <StackPanel Orientation="Horizontal" Margin="0,6"
+                            Visibility="{Binding CanLinkSprite, Converter={StaticResource BoolToVis}}">
+                    <TextBlock Text="Headgear sprite" VerticalAlignment="Center" Opacity="0.85" Width="100" />
+                    <ui:TextBox Text="{Binding SpriteName, UpdateSourceTrigger=PropertyChanged}"
+                                PlaceholderText="sprite base name" Width="180" Margin="0,0,8,0" />
+                    <ui:Button Content="Link sprite" Command="{Binding LinkSpriteCommand}" />
+                </StackPanel>
+                <TextBlock Text="{Binding SpriteLinkMessage}" Opacity="0.8" Foreground="#7FD0A0" TextWrapping="Wrap"
+                           Visibility="{Binding SpriteLinkMessage, Converter={StaticResource StringToVis}}" />
+            </StackPanel>
+
+            <!-- In-game preview (collection illustration shown in the item-detail window) -->
+            <StackPanel Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Top">
+                <Border Width="160" MinHeight="160" CornerRadius="6" Background="#22000000" Padding="6">
+                    <Image Source="{Binding CollectionPreview}" Stretch="Uniform" StretchDirection="DownOnly"
+                           RenderOptions.BitmapScalingMode="HighQuality"
+                           HorizontalAlignment="Center" VerticalAlignment="Center" MaxHeight="240" />
+                </Border>
+                <TextBlock Text="in-game preview" Opacity="0.45" FontSize="10" HorizontalAlignment="Center" Margin="0,3,0,0" />
+            </StackPanel>
+        </Grid>
+    </DataTemplate>
+
+    <!-- Cross-file validation panel -->
+    <DataTemplate DataType="{x:Type vm:ValidationViewModel}">
+        <DockPanel>
+            <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
+                <ui:Button Content="Run validation" Appearance="Primary" Command="{Binding RunCommand}" />
+                <TextBlock Text="{Binding Summary}" VerticalAlignment="Center" Opacity="0.75" Margin="12,0,0,0" />
+            </StackPanel>
+            <ListView ItemsSource="{Binding Issues}">
+                <ListView.View>
+                    <GridView>
+                        <GridViewColumn Header="Severity" Width="80" DisplayMemberBinding="{Binding Severity}" />
+                        <GridViewColumn Header="Database" Width="110" DisplayMemberBinding="{Binding DbId}" />
+                        <GridViewColumn Header="Key" Width="80" DisplayMemberBinding="{Binding Key}" />
+                        <GridViewColumn Header="Field" Width="90" DisplayMemberBinding="{Binding Field}" />
+                        <GridViewColumn Header="Message" Width="640" DisplayMemberBinding="{Binding Message}" />
+                    </GridView>
+                </ListView.View>
+            </ListView>
+        </DockPanel>
+    </DataTemplate>
+
+    <!-- Monster client sprite registration -->
+    <DataTemplate DataType="{x:Type vm:MobSpriteViewModel}">
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel Grid.Column="0">
+                <TextBlock Opacity="0.7" FontSize="11" TextWrapping="Wrap"
+                           Text="Registers the sprite in npcidentity.lub (JT_NAME = mob id) and jobname.lub." />
+                <StackPanel Orientation="Horizontal" Margin="0,8">
+                    <TextBlock Text="Sprite name" VerticalAlignment="Center" Opacity="0.85" Width="90" />
+                    <ui:TextBox Text="{Binding SpriteName, UpdateSourceTrigger=PropertyChanged}" Width="200" Margin="0,0,8,0" />
+                    <ui:Button Content="Register sprite" Appearance="Primary" Command="{Binding RegisterCommand}"
+                               IsEnabled="{Binding CanRegister}" />
+                </StackPanel>
+                <TextBlock Text="{Binding StatusMessage}" Opacity="0.8" Foreground="#7FD0A0" TextWrapping="Wrap"
+                           Visibility="{Binding StatusMessage, Converter={StaticResource StringToVis}}" />
+            </StackPanel>
+            <StackPanel Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Top">
+                <Border Width="120" Height="120" CornerRadius="6" Background="#22000000">
+                    <Grid>
+                        <controls:AnimatedSpriteImage Frames="{Binding Animation.Frames}" IntervalMs="{Binding Animation.IntervalMs}"
+                                                      Margin="4" Visibility="{Binding HasAnimation, Converter={StaticResource BoolToVis}}" />
+                        <Image Source="{Binding SpritePreview}" Stretch="Uniform" RenderOptions.BitmapScalingMode="NearestNeighbor"
+                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                               Visibility="{Binding HasAnimation, Converter={StaticResource BoolToVis}, ConverterParameter=invert}" />
+                    </Grid>
+                </Border>
+                <TextBlock Text="live sprite" Opacity="0.45" FontSize="10" HorizontalAlignment="Center" Margin="0,3,0,0"
+                           Visibility="{Binding HasAnimation, Converter={StaticResource BoolToVis}}" />
+            </StackPanel>
+        </Grid>
+    </DataTemplate>
+
+    <!-- Master list rows (Server Items / Client Items): dark theme, blue selection.
+         Classic ListView/GridView isn't dark-themed by WPF-UI, so the list rendered on a white
+         background (which made the white scrollbar invisible). This styles the rows explicitly. -->
+    <Style x:Key="MasterListItem" TargetType="{x:Type ListViewItem}">
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="Padding" Value="2,3" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type ListViewItem}">
+                    <Border x:Name="Bd" Background="Transparent" CornerRadius="3" Margin="0,1"
+                            Padding="{TemplateBinding Padding}">
+                        <GridViewRowPresenter Content="{TemplateBinding Content}"
+                                              Columns="{Binding View.Columns, RelativeSource={RelativeSource AncestorType=ListView}}" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="#16FFFFFF" />
+                        </Trigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="#2E6FB8" />
+                            <Setter Property="Foreground" Value="White" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Drop-table rows: no background fill on hover/select (avoids dark-theme color clashes) — just a border. -->
+    <Style x:Key="DropItemStyle" TargetType="ListBoxItem">
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ListBoxItem">
+                    <Border x:Name="Bd" BorderThickness="1" BorderBrush="Transparent" CornerRadius="3"
+                            Background="Transparent" Padding="3,2" Margin="0,1">
+                        <GridViewRowPresenter Content="{TemplateBinding Content}"
+                                              Columns="{Binding View.Columns, RelativeSource={RelativeSource AncestorType=ListView}}" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="#55FFFFFF" />
+                        </Trigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="#A0FFFFFF" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ============ Drop tables (SDE-style cards) ============ -->
+
+    <!-- One mob drop table (normal or MVP). Right-click selects the row, then the list-level menu acts on it. -->
+    <DataTemplate DataType="{x:Type vm:DropListViewModel}">
+        <DockPanel>
+            <Grid DockPanel.Dock="Top" Margin="0,0,0,6">
+                <TextBlock Text="{Binding Title}" FontWeight="SemiBold" VerticalAlignment="Center" Opacity="0.9" />
+                <ui:Button HorizontalAlignment="Right" Content="Add" Padding="9,2" Command="{Binding AddDropCommand}"
+                           IsEnabled="{Binding IsEditable}" ToolTip="Add a drop">
+                    <ui:Button.Icon><ui:SymbolIcon Symbol="Add24" /></ui:Button.Icon>
+                </ui:Button>
+            </Grid>
+            <Border BorderBrush="#1FFFFFFF" BorderThickness="1" CornerRadius="6" Background="#0AFFFFFF">
+                <ListView ItemsSource="{Binding Rows}" MaxHeight="260" MinHeight="64" BorderThickness="0"
+                          Background="Transparent" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                          ItemContainerStyle="{StaticResource DropItemStyle}"
+                          common:ListBehaviors.SelectOnRightClick="True">
+                    <ListView.InputBindings>
+                        <KeyBinding Key="Delete" Command="{Binding RemoveDropCommand}"
+                                    CommandParameter="{Binding SelectedItem, RelativeSource={RelativeSource AncestorType=ListView}}" />
+                        <KeyBinding Key="C" Modifiers="Control" Command="{Binding CopyDropCommand}"
+                                    CommandParameter="{Binding SelectedItem, RelativeSource={RelativeSource AncestorType=ListView}}" />
+                        <KeyBinding Key="V" Modifiers="Control" Command="{Binding PasteDropCommand}" />
+                    </ListView.InputBindings>
+                    <ListView.ContextMenu>
+                        <ContextMenu>
+                            <MenuItem Header="Select item in DB"
+                                      Visibility="{Binding PlacementTarget.SelectedItem, RelativeSource={RelativeSource AncestorType=ContextMenu}, Converter={StaticResource NotNullToVis}}"
+                                      Command="{Binding PlacementTarget.DataContext.SelectItemCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                      CommandParameter="{Binding PlacementTarget.SelectedItem, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                            <MenuItem Header="Edit chance"
+                                      Visibility="{Binding PlacementTarget.SelectedItem, RelativeSource={RelativeSource AncestorType=ContextMenu}, Converter={StaticResource NotNullToVis}}"
+                                      Command="{Binding PlacementTarget.DataContext.EditDropCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                      CommandParameter="{Binding PlacementTarget.SelectedItem, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                            <MenuItem Header="Remove" InputGestureText="Del"
+                                      Visibility="{Binding PlacementTarget.SelectedItem, RelativeSource={RelativeSource AncestorType=ContextMenu}, Converter={StaticResource NotNullToVis}}"
+                                      Command="{Binding PlacementTarget.DataContext.RemoveDropCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                      CommandParameter="{Binding PlacementTarget.SelectedItem, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                            <MenuItem Header="Copy" InputGestureText="Ctrl+C"
+                                      Visibility="{Binding PlacementTarget.SelectedItem, RelativeSource={RelativeSource AncestorType=ContextMenu}, Converter={StaticResource NotNullToVis}}"
+                                      Command="{Binding PlacementTarget.DataContext.CopyDropCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                      CommandParameter="{Binding PlacementTarget.SelectedItem, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                            <Separator Visibility="{Binding PlacementTarget.SelectedItem, RelativeSource={RelativeSource AncestorType=ContextMenu}, Converter={StaticResource NotNullToVis}}" />
+                            <MenuItem Header="Paste" InputGestureText="Ctrl+V"
+                                      Command="{Binding PlacementTarget.DataContext.PasteDropCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                            <MenuItem Header="Add drop"
+                                      Command="{Binding PlacementTarget.DataContext.AddDropCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                        </ContextMenu>
+                    </ListView.ContextMenu>
+                    <ListView.View>
+                        <GridView>
+                            <GridViewColumn Header="ID" Width="56">
+                                <GridViewColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding ItemId}" FontFamily="Consolas" Foreground="#8AD0FF" />
+                                    </DataTemplate>
+                                </GridViewColumn.CellTemplate>
+                            </GridViewColumn>
+                            <GridViewColumn Header="Name" Width="188">
+                                <GridViewColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding ItemName}" Foreground="#ECECEC" TextTrimming="CharacterEllipsis" />
+                                    </DataTemplate>
+                                </GridViewColumn.CellTemplate>
+                            </GridViewColumn>
+                            <GridViewColumn Header="Drop %" Width="70">
+                                <GridViewColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding RateText}" FontFamily="Consolas" Foreground="#79D2A6" HorizontalAlignment="Right" />
+                                    </DataTemplate>
+                                </GridViewColumn.CellTemplate>
+                            </GridViewColumn>
+                        </GridView>
+                    </ListView.View>
+                </ListView>
+            </Border>
+        </DockPanel>
+    </DataTemplate>
+
+    <!-- Mob drops card: Normal + MVP side by side -->
+    <DataTemplate DataType="{x:Type vm:MobDropsViewModel}">
+        <ui:Card Padding="14,12">
+            <StackPanel>
+                <DockPanel Margin="0,0,0,10">
+                    <TextBlock Text="Drop tables" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" />
+                    <TextBlock DockPanel.Dock="Right" HorizontalAlignment="Right" VerticalAlignment="Center"
+                               Text="Read-only — create an override to edit" Opacity="0.55" FontSize="11"
+                               Visibility="{Binding IsEditable, Converter={StaticResource BoolToVis}, ConverterParameter=invert}" />
+                </DockPanel>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="18" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <ContentControl Grid.Column="0" Content="{Binding Normal}" />
+                    <ContentControl Grid.Column="2" Content="{Binding Mvp}" />
+                </Grid>
+            </StackPanel>
+        </ui:Card>
+    </DataTemplate>
+
+    <!-- Item "Dropped by" reverse card -->
+    <DataTemplate DataType="{x:Type vm:DroppedByViewModel}">
+        <ui:Card Padding="14,12">
+            <DockPanel>
+                <DockPanel DockPanel.Dock="Top" Margin="0,0,0,10">
+                    <TextBlock Text="Dropped by" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" />
+                    <TextBlock DockPanel.Dock="Right" HorizontalAlignment="Right" VerticalAlignment="Center"
+                               Text="{Binding Summary}" Opacity="0.6" FontSize="11" />
+                </DockPanel>
+                <Border BorderBrush="#1FFFFFFF" BorderThickness="1" CornerRadius="6" Background="#0AFFFFFF">
+                    <ListView ItemsSource="{Binding Rows}" MaxHeight="280" MinHeight="64" BorderThickness="0"
+                              Background="Transparent" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                              ItemContainerStyle="{StaticResource DropItemStyle}"
+                              common:ListBehaviors.SelectOnRightClick="True">
+                        <ListView.InputBindings>
+                            <KeyBinding Key="Delete" Command="{Binding RemoveDropCommand}"
+                                        CommandParameter="{Binding SelectedItem, RelativeSource={RelativeSource AncestorType=ListView}}" />
+                        </ListView.InputBindings>
+                        <ListView.ContextMenu>
+                            <ContextMenu>
+                                <MenuItem Header="Select monster"
+                                          Visibility="{Binding PlacementTarget.SelectedItem, RelativeSource={RelativeSource AncestorType=ContextMenu}, Converter={StaticResource NotNullToVis}}"
+                                          Command="{Binding PlacementTarget.DataContext.SelectMobCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                          CommandParameter="{Binding PlacementTarget.SelectedItem, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                <MenuItem Header="Edit chance"
+                                          Visibility="{Binding PlacementTarget.SelectedItem, RelativeSource={RelativeSource AncestorType=ContextMenu}, Converter={StaticResource NotNullToVis}}"
+                                          Command="{Binding PlacementTarget.DataContext.EditChanceCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                          CommandParameter="{Binding PlacementTarget.SelectedItem, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                <MenuItem Header="Remove" InputGestureText="Del"
+                                          Visibility="{Binding PlacementTarget.SelectedItem, RelativeSource={RelativeSource AncestorType=ContextMenu}, Converter={StaticResource NotNullToVis}}"
+                                          Command="{Binding PlacementTarget.DataContext.RemoveDropCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                          CommandParameter="{Binding PlacementTarget.SelectedItem, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                <Separator Visibility="{Binding PlacementTarget.SelectedItem, RelativeSource={RelativeSource AncestorType=ContextMenu}, Converter={StaticResource NotNullToVis}}" />
+                                <MenuItem Header="Add normal drop"
+                                          Command="{Binding PlacementTarget.DataContext.AddNormalDropCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                <MenuItem Header="Add MVP drop"
+                                          Command="{Binding PlacementTarget.DataContext.AddMvpDropCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                            </ContextMenu>
+                        </ListView.ContextMenu>
+                        <ListView.View>
+                            <GridView>
+                                <GridViewColumn Header="Mob ID" Width="64">
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding MobId}" FontFamily="Consolas" Foreground="#8AD0FF" />
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+                                <GridViewColumn Header="Monster" Width="190">
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding MobName}" Foreground="#ECECEC" TextTrimming="CharacterEllipsis" />
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+                                <GridViewColumn Header="Type" Width="52">
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding Kind}" Foreground="#AAB2BF" />
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+                                <GridViewColumn Header="Drop %" Width="70">
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding RateText}" FontFamily="Consolas" Foreground="#79D2A6" HorizontalAlignment="Right" />
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+                            </GridView>
+                        </ListView.View>
+                    </ListView>
+                </Border>
+            </DockPanel>
+        </ui:Card>
+    </DataTemplate>
+
+    <!-- Fallback summary -->
+    <DataTemplate DataType="{x:Type vm:SummaryFieldEditorViewModel}">
+        <Grid Margin="0,2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="140" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Text="{Binding Label}" Style="{StaticResource FieldLabel}" />
+            <Border Grid.Column="1" Background="#1AFFFFFF" CornerRadius="4" Padding="8,4" HorizontalAlignment="Left">
+                <TextBlock Text="{Binding Summary}" Opacity="0.8" TextWrapping="Wrap" />
+            </Border>
+        </Grid>
+    </DataTemplate>
+
+</ResourceDictionary>

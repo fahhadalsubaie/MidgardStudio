@@ -1,0 +1,51 @@
+<ui:FluentWindow x:Class="MidgardStudio.App.Views.AboutDialog"
+                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                 Title="About Midgard Studio"
+                 Icon="/Assets/logo.png"
+                 Width="480" SizeToContent="Height"
+                 WindowStartupLocation="CenterOwner"
+                 WindowBackdropType="Mica"
+                 ExtendsContentIntoTitleBar="True"
+                 ResizeMode="NoResize"
+                 ShowInTaskbar="False">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <ui:TitleBar Grid.Row="0" Title="About" />
+
+        <StackPanel Grid.Row="1" Margin="24,8,24,22">
+            <StackPanel Orientation="Horizontal">
+                <Image Source="/Assets/logo.png" Width="56" Height="56" VerticalAlignment="Center" Margin="0,0,16,0"
+                       RenderOptions.BitmapScalingMode="HighQuality" />
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="Midgard Studio" FontSize="24" FontWeight="SemiBold" />
+                    <TextBlock Text="Ragnarok Server Studio" Opacity="0.7" FontSize="13" />
+                </StackPanel>
+            </StackPanel>
+
+            <TextBlock x:Name="VersionText" Opacity="0.55" FontSize="12" Margin="0,14,0,0" />
+
+            <TextBlock Margin="0,14,0,0" TextWrapping="Wrap" LineHeight="20" Opacity="0.85"
+                       Text="A native studio for building Ragnarok Online server content. It edits the server databases — items, monsters, skills, pets, item groups, combos and more — alongside the client data: item info, sprites, icons and the GRF browser. The Item Forge creates a complete item across server and client in one pass, with live sprite and icon previews." />
+
+            <Border Margin="0,16,0,0" CornerRadius="6" Background="#1A4A8F3C" BorderBrush="#3A6FD08A"
+                    BorderThickness="1" Padding="12,10">
+                <TextBlock TextWrapping="Wrap" FontSize="12.5" LineHeight="19"
+                           Text="Your base data stays safe. Edits are written to the import layer and the custom itemInfo file using in-place splicing — existing entries, comments and helper functions are preserved, and the original base files are never modified." />
+            </Border>
+
+            <TextBlock Margin="0,18,0,0" FontSize="13">
+                <Run Text="Created by " /><Run Text="Kyoshio" FontWeight="SemiBold" />
+            </TextBlock>
+
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,18,0,0">
+                <ui:Button x:Name="OkButton" Content="Close" Appearance="Primary" MinWidth="100" />
+            </StackPanel>
+        </StackPanel>
+    </Grid>
+</ui:FluentWindow>

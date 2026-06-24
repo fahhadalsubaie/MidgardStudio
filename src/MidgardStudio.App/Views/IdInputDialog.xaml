@@ -1,0 +1,28 @@
+<ui:FluentWindow x:Class="MidgardStudio.App.Views.IdInputDialog"
+                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                 Title="Enter ID"
+                 Width="320" SizeToContent="Height"
+                 WindowStartupLocation="CenterOwner"
+                 WindowBackdropType="Mica"
+                 ExtendsContentIntoTitleBar="True"
+                 ResizeMode="NoResize"
+                 ShowInTaskbar="False">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <ui:TitleBar x:Name="TitleBarCtl" Grid.Row="0" Title="Enter ID" />
+        <StackPanel Grid.Row="1" Margin="16,8,16,16">
+            <TextBlock x:Name="PromptText" Text="New ID" Opacity="0.85" Margin="0,0,0,4" />
+            <ui:TextBox x:Name="IdBox" />
+            <TextBlock x:Name="ErrorText" Foreground="#E0746A" Margin="0,8,0,0" TextWrapping="Wrap" Visibility="Collapsed" />
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+                <ui:Button x:Name="OkButton" Content="OK" Appearance="Primary" MinWidth="84" Margin="0,0,8,0" />
+                <ui:Button x:Name="CancelButton" Content="Cancel" MinWidth="84" />
+            </StackPanel>
+        </StackPanel>
+    </Grid>
+</ui:FluentWindow>
