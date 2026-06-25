@@ -47,7 +47,7 @@
                             <ui:SymbolIcon Symbol="Filter24" />
                         </ToggleButton>
                     </StackPanel>
-                    <ui:TextBox Grid.Column="1" PlaceholderText="Search id / aegis / name / type…"
+                    <ui:TextBox Grid.Column="1" Tag="ListSearch" PlaceholderText="Search id / aegis / name / type…  (Ctrl+F)"
                                 Text="{Binding List.SearchText, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}" />
                 </Grid>
 
@@ -63,8 +63,7 @@
                           VirtualizingPanel.ScrollUnit="Pixel"
                           ScrollViewer.VerticalScrollBarVisibility="Visible"
                           ScrollViewer.IsDeferredScrollingEnabled="False"
-                          common:ListBehaviors.SelectOnRightClick="True"
-                          common:ScrollSound.Enabled="True">
+                          common:ListBehaviors.SelectOnRightClick="True">
                     <ListView.ContextMenu>
                         <ContextMenu>
                             <MenuItem Header="Restore to default"
@@ -129,14 +128,7 @@
                            Visibility="{Binding Editor.HasRecord, Converter={StaticResource BoolToVis}, ConverterParameter=invert}" />
 
                 <DockPanel Visibility="{Binding Editor.HasRecord, Converter={StaticResource BoolToVis}}">
-                    <!-- Record identity (action buttons now live in the top bar) -->
-                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
-                        <TextBlock Text="{Binding Editor.Title}" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" />
-                        <Border Margin="10,0,0,0" CornerRadius="3" Padding="6,1" VerticalAlignment="Center"
-                                Background="#33FFFFFF">
-                            <TextBlock Text="{Binding Editor.Origin}" FontSize="10" />
-                        </Border>
-                    </StackPanel>
+                    <!-- Record identity header removed: the list already shows the selected entry + its origin. -->
 
                     <ui:InfoBar DockPanel.Dock="Top" Severity="Informational" IsClosable="True" Margin="0,0,0,8"
                                 Title="Info" Message="{Binding PortReportText}"

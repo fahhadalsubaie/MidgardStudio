@@ -256,8 +256,9 @@ public sealed partial class DbWorkspaceViewModel : ObservableObject, IDisposable
                 ApplySelection(list.SelectedRow);
         };
         editor.RecordChanged += () => list.SelectedRow?.Refresh();
-        // Creating an override makes the record editable — rebuild the side/drop cards so they unlock.
-        editor.OverrideCreated += () => ApplySelection(list.SelectedRow);
+        // Creating an override makes the record editable — refresh the row's origin pill and rebuild the
+        // side/drop cards so they unlock.
+        editor.OverrideCreated += () => { list.SelectedRow?.Refresh(); ApplySelection(list.SelectedRow); };
 
         Editor = editor;
         List = list;
@@ -339,9 +340,16 @@ public sealed partial class DbWorkspaceViewModel : ObservableObject, IDisposable
 
         var record = new DbRecord(_schema);
         if (keyField.Kind == FieldKind.Int)
-            record.SetRaw(keyField.Name, NextFreeId(keyField.Name));
+        {
+            // Ask for the id (pre-filled with the next free one ≥ 30000); abort on cancel, reject duplicates.
+            if (PromptId($"New {_schema.DisplayName} entry", "ID", NextFreeId(keyField.Name)) is not { } id) return;
+            if (_overlay.GetEffective(RecordKey.Of(id)) is not null) { PortReportText = $"ID {id} already exists — pick another."; return; }
+            record.SetRaw(keyField.Name, id);
+        }
         else
+        {
             record.SetRaw(keyField.Name, UniqueStringKey(keyField.Name));
+        }
 
         if (_schema.Field("AegisName") is not null)
             record.SetRaw("AegisName", $"Custom_{record.Key}");

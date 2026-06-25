@@ -78,6 +78,13 @@ public sealed class WorkspaceSession
     public IReadOnlyList<string> DirtyDatabaseIds() =>
         _modeSets.Where(kv => kv.Value.IsDirty).Select(kv => kv.Key).ToList();
 
+    /// <summary>Schema id + the import file path that will be written for each database with unsaved edits.
+    /// Capture before <see cref="SaveAll"/> (which clears the dirty flags) to label the save summary.</summary>
+    public IReadOnlyList<(string Id, string ImportFilePath)> DirtySaveTargets() =>
+        _modeSets.Where(kv => kv.Value.IsDirty)
+                 .Select(kv => (kv.Key, kv.Value.Renewal.ImportFilePath))
+                 .ToList();
+
     public int SaveAll()
     {
         int saved = 0;

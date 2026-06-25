@@ -6,6 +6,7 @@
                  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
                  xmlns:vm="clr-namespace:MidgardStudio.App.ViewModels"
                  xmlns:views="clr-namespace:MidgardStudio.App.Views"
+                 xmlns:common="clr-namespace:MidgardStudio.App.Common"
                  mc:Ignorable="d"
                  d:DataContext="{d:DesignInstance Type=vm:ShellViewModel}"
                  Title="Midgard Studio"
@@ -30,6 +31,11 @@
         <!-- Client items editor -->
         <DataTemplate DataType="{x:Type vm:ClientItemsViewModel}">
             <views:ClientItemsView />
+        </DataTemplate>
+
+        <!-- Item combos editor -->
+        <DataTemplate DataType="{x:Type vm:ComboEditorViewModel}">
+            <views:ComboEditorView />
         </DataTemplate>
 
         <!-- Configuration wizard -->
@@ -62,7 +68,7 @@
             <ui:Card>
                 <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="560">
                     <ui:SymbolIcon Symbol="{Binding Icon}" FontSize="52" HorizontalAlignment="Center" Opacity="0.55" />
-                    <TextBlock Text="{Binding Title}" FontSize="24" FontWeight="SemiBold"
+                    <TextBlock Text="{Binding Title}" Style="{StaticResource TitleScreen}"
                                HorizontalAlignment="Center" Margin="0,14,0,6" />
                     <TextBlock Text="{Binding Description}" Opacity="0.7" TextWrapping="Wrap"
                                TextAlignment="Center" HorizontalAlignment="Center" />
@@ -244,6 +250,18 @@
                             </TextBlock>
                         </StackPanel>
                     </Border>
+
+                    <!-- Undo / redo arrows (right after the changes indicator); auto-grey via CanExecute -->
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0,0,0">
+                        <ui:Button Appearance="Transparent" Padding="7,4" Margin="0,0,2,0"
+                                   Command="{Binding UndoCommand}" ToolTip="Undo (Ctrl+Z)">
+                            <ui:Button.Icon><ui:SymbolIcon Symbol="ArrowUndo24" FontSize="16" /></ui:Button.Icon>
+                        </ui:Button>
+                        <ui:Button Appearance="Transparent" Padding="7,4"
+                                   Command="{Binding RedoCommand}" ToolTip="Redo (Ctrl+Y)">
+                            <ui:Button.Icon><ui:SymbolIcon Symbol="ArrowRedo24" FontSize="16" /></ui:Button.Icon>
+                        </ui:Button>
+                    </StackPanel>
                 </StackPanel>
 
                 <!-- Right: record actions for the active entry + Save -->
@@ -252,15 +270,55 @@
                                 Visibility="{Binding ActiveWorkspace.Editor.HasRecord, Converter={StaticResource BoolToVis}, FallbackValue=Collapsed}">
                         <ui:Button Content="YAML" Command="{Binding ActiveWorkspace.ShowYamlCommand}" Margin="0,0,6,0"
                                    ToolTip="Preview the YAML written to the import file" />
-                        <ui:Button Content="Create override to edit" Appearance="Primary"
+                        <ui:Button Content="Copy to Import to edit" Appearance="Primary"
                                    Command="{Binding ActiveWorkspace.Editor.CreateOverrideCommand}"
                                    Visibility="{Binding ActiveWorkspace.Editor.IsEditable, Converter={StaticResource BoolToVis}, ConverterParameter=invert, FallbackValue=Collapsed}" />
                         <Border Width="1" Height="18" Background="#22FFFFFF" Margin="8,0" />
                     </StackPanel>
-                    <ui:Button Content="Save" Appearance="Primary" Command="{Binding SaveCommand}"
-                               ToolTip="Write pending changes (Ctrl+S) — only modified files are rewritten">
-                        <ui:Button.Icon><ui:SymbolIcon Symbol="Save24" /></ui:Button.Icon>
-                    </ui:Button>
+
+                    <!-- Item Combos actions (only on that screen) -->
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center"
+                                Visibility="{Binding ActiveCombo, Converter={StaticResource NotNullToVis}, FallbackValue=Collapsed}">
+                        <ui:Button Content="Copy to Import to edit" Appearance="Primary" Margin="0,0,6,0"
+                                   Command="{Binding ActiveCombo.CreateOverrideCommand}"
+                                   Visibility="{Binding ActiveCombo.IsBaseSelected, Converter={StaticResource BoolToVis}, FallbackValue=Collapsed}"
+                                   ToolTip="Make this base combo editable (copy-on-write)" />
+                        <ui:Button Content="New combo" Command="{Binding ActiveCombo.AddComboSetCommand}"
+                                   ToolTip="Create a new custom combo">
+                            <ui:Button.Icon><ui:SymbolIcon Symbol="Add24" /></ui:Button.Icon>
+                        </ui:Button>
+                        <Border Width="1" Height="18" Background="#22FFFFFF" Margin="8,0" />
+                    </StackPanel>
+
+                    <!-- Save: black button; the border ring animates the logo gradient only when there's
+                         something to save (enabled). Disabled = plain black. -->
+                    <Button Command="{Binding SaveCommand}" Cursor="Hand"
+                            ToolTip="Write pending changes (Ctrl+S) — only modified files are rewritten">
+                        <Button.Template>
+                            <ControlTemplate TargetType="Button">
+                                <Grid>
+                                    <Border x:Name="Ring" CornerRadius="8" Background="#000000" />
+                                    <Border x:Name="Fill" CornerRadius="6" Margin="2" Background="#0C0C12" Padding="13,6">
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <ui:SymbolIcon Symbol="Save24" FontSize="16" Foreground="White" VerticalAlignment="Center" />
+                                            <TextBlock Text="Save" Foreground="White" FontWeight="Medium" Margin="7,0,0,0" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Border>
+                                </Grid>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsEnabled" Value="True">
+                                        <Setter TargetName="Ring" Property="common:GradientBorder.Enabled" Value="True" />
+                                    </Trigger>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="Fill" Property="Background" Value="#1A1A22" />
+                                    </Trigger>
+                                    <Trigger Property="IsEnabled" Value="False">
+                                        <Setter TargetName="Fill" Property="Opacity" Value="0.55" />
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Button.Template>
+                    </Button>
                 </StackPanel>
             </Grid>
         </Border>
@@ -299,16 +357,17 @@
             <ContentControl Grid.Column="1" Margin="12,6,16,16" Content="{Binding CurrentContent}" />
         </Grid>
 
-        <!-- Command palette overlay (Ctrl+K) -->
-        <Border Grid.Row="0" Grid.RowSpan="3" Background="#99000000"
+        <!-- Command palette overlay (Ctrl+K / Ctrl+Shift+F) -->
+        <Border Grid.Row="0" Grid.RowSpan="3" Background="#CC0A0A0E"
                 Visibility="{Binding IsPaletteOpen, Converter={StaticResource BoolToVis}}">
             <Border.InputBindings>
                 <KeyBinding Key="Escape" Command="{Binding ClosePaletteCommand}" />
             </Border.InputBindings>
-            <ui:Card Width="660" MaxHeight="460" VerticalAlignment="Top" HorizontalAlignment="Center" Margin="0,90,0,0">
+            <ui:Card Width="660" MaxHeight="460" VerticalAlignment="Top" HorizontalAlignment="Center" Margin="0,90,0,0"
+                     Background="#FF1E1E26" BorderBrush="#33FFFFFF" BorderThickness="1">
                 <DockPanel>
                     <ui:TextBox x:Name="PaletteSearchBox" DockPanel.Dock="Top"
-                                PlaceholderText="Quick open — search loaded databases by id / aegis / name…"
+                                PlaceholderText="Search any database by id / aegis / name…"
                                 Text="{Binding PaletteQuery, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,8" />
                     <ListBox x:Name="PaletteResultsBox" ItemsSource="{Binding PaletteResults}" MaxHeight="380">
                         <ListBox.InputBindings>
@@ -337,11 +396,14 @@
             <Border Margin="20" CornerRadius="8" Background="#FF1E1E26"
                     BorderBrush="#22FFFFFF" BorderThickness="1" Padding="20">
                 <DockPanel>
-                    <TextBlock DockPanel.Dock="Top" Text="Midgard Studio  ·  Configuration"
-                               FontSize="24" FontWeight="SemiBold" Margin="0,0,0,14" />
+                    <TextBlock DockPanel.Dock="Top" Text="Midgard Studio  ·  Configuration" Style="{StaticResource TitleScreen}"
+                               Margin="0,0,0,14" />
                     <ContentControl Content="{Binding Wizard}" />
                 </DockPanel>
             </Border>
         </Border>
+
+        <!-- Click-spark overlay: sits above everything and never intercepts input -->
+        <Canvas x:Name="SparkLayer" Grid.Row="0" Grid.RowSpan="3" IsHitTestVisible="False" ClipToBounds="True" />
     </Grid>
 </ui:FluentWindow>

@@ -1,0 +1,64 @@
+<ui:FluentWindow x:Class="MidgardStudio.App.Views.SaveSummaryDialog"
+                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                 Title="Saved"
+                 Width="540" SizeToContent="Height"
+                 MaxHeight="640"
+                 WindowStartupLocation="CenterOwner"
+                 WindowBackdropType="Mica"
+                 ExtendsContentIntoTitleBar="True"
+                 ResizeMode="NoResize"
+                 ShowInTaskbar="False">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <ui:TitleBar x:Name="Bar" Grid.Row="0" Title="Saved" />
+
+        <StackPanel Grid.Row="1" Margin="20,8,20,18">
+            <!-- Headline: green check + "Changes saved" -->
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                <ui:SymbolIcon Symbol="CheckmarkCircle24" FontSize="22" Foreground="#4FD17A"
+                               VerticalAlignment="Center" Margin="0,0,10,0" />
+                <TextBlock Text="Changes saved" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center" />
+            </StackPanel>
+
+            <!-- What happened -->
+            <TextBlock x:Name="SummaryText" Opacity="0.8" TextWrapping="Wrap" Margin="0,0,0,14" LineHeight="19" />
+
+            <TextBlock Text="Files written" FontSize="12" FontWeight="SemiBold" Opacity="0.6" Margin="0,0,0,6" />
+
+            <!-- The list of files this save wrote to disk -->
+            <Border BorderBrush="#1FFFFFFF" BorderThickness="1" CornerRadius="6" Padding="4">
+                <ScrollViewer MaxHeight="320" VerticalScrollBarVisibility="Auto">
+                    <ItemsControl x:Name="FilesList">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Margin="6,5">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border Grid.Column="0" Background="#33FFFFFF" CornerRadius="3"
+                                            Padding="7,1" Margin="0,0,10,0" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding Label}" FontSize="11" />
+                                    </Border>
+                                    <TextBlock Grid.Column="1" Text="{Binding Path}" FontFamily="Consolas" FontSize="12"
+                                               Opacity="0.75" VerticalAlignment="Center"
+                                               TextTrimming="CharacterEllipsis" ToolTip="{Binding Path}" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </Border>
+
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,18,0,0">
+                <ui:Button x:Name="CloseButton" Content="Done" Appearance="Primary" MinWidth="96" />
+            </StackPanel>
+        </StackPanel>
+    </Grid>
+</ui:FluentWindow>

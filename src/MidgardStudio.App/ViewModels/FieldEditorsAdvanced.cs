@@ -1,4 +1,6 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Windows.Data;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using MidgardStudio.Core.Commands;
@@ -140,11 +142,14 @@ public sealed class ObjectFieldEditorViewModel : FieldEditorViewModel
 
 // ---- Object list (mob Drops, pet Evolution, item_group List, ...) as an editable sub-grid ----
 
-public sealed class ObjectRowViewModel
+public sealed class ObjectRowViewModel : ObservableObject
 {
+    private readonly DbSchema _element;
+
     public ObjectRowViewModel(DbRecord record, DbSchema element, FieldEditorContext ctx)
     {
         Record = record;
+        _element = element;
         foreach (var field in element.Fields)
             Cells.Add(FieldEditorFactory.Create(record, field, ctx));
     }
@@ -152,6 +157,56 @@ public sealed class ObjectRowViewModel
     public DbRecord Record { get; }
 
     public ObservableCollection<FieldEditorViewModel> Cells { get; } = new();
+
+    /// <summary>Headline for the master list: the entry's name/reference, else its first meaningful value.</summary>
+    public string PrimaryText
+    {
+        get
+        {
+            var nameField = _element.Fields.FirstOrDefault(f => f.IsDisplay)
+                ?? _element.Fields.FirstOrDefault(f => f.Kind == FieldKind.Reference)
+                ?? _element.Fields.FirstOrDefault(f => f.Kind == FieldKind.String);
+            if (nameField is not null)
+            {
+                var s = Record.GetString(nameField.Name);
+                if (!string.IsNullOrWhiteSpace(s)) return s!;
+            }
+            return ScalarParts().FirstOrDefault() ?? "(new entry)";
+        }
+    }
+
+    /// <summary>Muted secondary line: the entry's key scalar values (Rate, Amount, …).</summary>
+    public string SecondaryText => string.Join("   ·   ", ScalarParts().Take(4));
+
+    private IEnumerable<string> ScalarParts()
+    {
+        foreach (var f in _element.Fields)
+        {
+            if (f.Kind is FieldKind.Reference or FieldKind.String or FieldKind.Script
+                or FieldKind.Object or FieldKind.ObjectList or FieldKind.Flags or FieldKind.BoolMap)
+                continue;
+            var v = Record.Get(f.Name);
+            if (IsDefault(v, f.Default)) continue;
+            yield return v is bool ? f.Label : $"{f.Label} {v}";
+        }
+    }
+
+    /// <summary>Re-reads the summary text after a field edit so the master row stays in sync.</summary>
+    public void RefreshSummary()
+    {
+        OnPropertyChanged(nameof(PrimaryText));
+        OnPropertyChanged(nameof(SecondaryText));
+    }
+
+    private static bool IsDefault(object? v, object? def) => v switch
+    {
+        null => true,
+        bool b => b == (def is bool db && db),
+        int i => i == (def is int di ? di : 0),
+        long l => l == (def is long dl ? dl : def is int di2 ? di2 : 0L),
+        string s => string.IsNullOrEmpty(s),
+        _ => false,
+    };
 }
 
 public sealed partial class ObjectListFieldEditorViewModel : FieldEditorViewModel
@@ -177,9 +232,34 @@ public sealed partial class ObjectListFieldEditorViewModel : FieldEditorViewMode
 
         foreach (var record in _list)
             Rows.Add(BuildRow(record));
+
+        RowsView = CollectionViewSource.GetDefaultView(Rows);
+        RowsView.Filter = MatchesSearch;
+        SelectedRow = Rows.FirstOrDefault();
     }
 
     public ObservableCollection<ObjectRowViewModel> Rows { get; } = new();
+
+    /// <summary>Filtered/searchable view of <see cref="Rows"/> bound to the master list.</summary>
+    public ICollectionView RowsView { get; }
+
+    /// <summary>The entry shown in the detail pane of the master-detail editor.</summary>
+    [ObservableProperty]
+    private ObjectRowViewModel? _selectedRow;
+
+    /// <summary>Filter text for the master list; matches the entry's name/summary.</summary>
+    [ObservableProperty]
+    private string _searchText = string.Empty;
+
+    partial void OnSearchTextChanged(string value) => RowsView.Refresh();
+
+    private bool MatchesSearch(object o)
+    {
+        if (string.IsNullOrWhiteSpace(SearchText) || o is not ObjectRowViewModel row) return true;
+        string q = SearchText.Trim();
+        return row.PrimaryText.Contains(q, StringComparison.OrdinalIgnoreCase)
+            || row.SecondaryText.Contains(q, StringComparison.OrdinalIgnoreCase);
+    }
 
     public override string Summary =>
         _list.Count == 0 ? "None" : $"{_list.Count} " + (_list.Count == 1 ? "entry" : "entries");
@@ -188,7 +268,10 @@ public sealed partial class ObjectListFieldEditorViewModel : FieldEditorViewMode
     {
         var row = new ObjectRowViewModel(record, _element, _ctx);
         foreach (var cell in row.Cells)
+        {
             cell.Changed += RaiseChanged;
+            cell.Changed += row.RefreshSummary; // keep the master-row label live as fields are edited
+        }
         return row;
     }
 
@@ -196,12 +279,13 @@ public sealed partial class ObjectListFieldEditorViewModel : FieldEditorViewMode
     private void AddRow()
     {
         if (!IsEditable) return;
+        SearchText = string.Empty; // ensure the new (empty) entry isn't hidden by an active filter
         var record = new DbRecord(_element) { Owner = _parent };
         var row = BuildRow(record);
         Stack.Execute(new ListMutateCommand(
             $"{_parent.Schema.DisplayName}: add {Label} row",
-            () => { _list.Add(record); Rows.Add(row); _parent.IsDirty = true; RaiseChanged(); OnPropertyChanged(nameof(Summary)); },
-            () => { _list.Remove(record); Rows.Remove(row); _parent.IsDirty = true; RaiseChanged(); }));
+            () => { _list.Add(record); Rows.Add(row); SelectedRow = row; _parent.IsDirty = true; RaiseChanged(); OnPropertyChanged(nameof(Summary)); },
+            () => { _list.Remove(record); Rows.Remove(row); _parent.IsDirty = true; RaiseChanged(); OnPropertyChanged(nameof(Summary)); }));
     }
 
     [RelayCommand]
@@ -211,12 +295,18 @@ public sealed partial class ObjectListFieldEditorViewModel : FieldEditorViewMode
         int index = _list.IndexOf(row.Record);
         Stack.Execute(new ListMutateCommand(
             $"{_parent.Schema.DisplayName}: remove {Label} row",
-            () => { _list.Remove(row.Record); Rows.Remove(row); _parent.IsDirty = true; RaiseChanged(); OnPropertyChanged(nameof(Summary)); },
+            () =>
+            {
+                _list.Remove(row.Record); Rows.Remove(row);
+                SelectedRow = Rows.Count == 0 ? null : Rows[Math.Clamp(index, 0, Rows.Count - 1)];
+                _parent.IsDirty = true; RaiseChanged(); OnPropertyChanged(nameof(Summary));
+            },
             () =>
             {
                 int i = Math.Clamp(index, 0, _list.Count);
                 _list.Insert(i, row.Record);
                 Rows.Insert(Math.Clamp(index, 0, Rows.Count), row);
+                SelectedRow = row;
                 _parent.IsDirty = true;
                 RaiseChanged();
                 OnPropertyChanged(nameof(Summary));

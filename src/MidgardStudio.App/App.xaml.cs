@@ -83,6 +83,7 @@ public partial class App : Application
         services.AddSingleton<Services.SpriteLinkService>();
         services.AddSingleton<Services.MobSpriteService>();
         services.AddSingleton<Services.DropService>();
+        services.AddSingleton<Services.SkillLookupService>();
         services.AddSingleton<Services.BackupService>();
         services.AddSingleton<Services.MapCacheService>();
         services.AddSingleton<Services.AppSettingsService>();

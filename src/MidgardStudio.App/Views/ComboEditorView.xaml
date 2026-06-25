@@ -1,0 +1,176 @@
+<UserControl x:Class="MidgardStudio.App.Views.ComboEditorView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             xmlns:avalon="http://icsharpcode.net/sharpdevelop/avalonedit"
+             xmlns:common="clr-namespace:MidgardStudio.App.Common"
+             xmlns:vm="clr-namespace:MidgardStudio.App.ViewModels"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=vm:ComboEditorViewModel}">
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="340" MinWidth="260" />
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <!-- ===== Master: combo list ===== -->
+        <DockPanel Grid.Column="0">
+            <StackPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                <TextBlock Text="Item Combos" Style="{StaticResource TitleScreen}" />
+                <TextBlock Text="Bonuses granted when a set of items is worn together." Opacity="0.55" FontSize="11.5" TextWrapping="Wrap" />
+            </StackPanel>
+
+            <ui:TextBox DockPanel.Dock="Top" Margin="0,0,0,8" PlaceholderText="Search by item or script…"
+                        Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" />
+
+            <Border BorderBrush="#1FFFFFFF" BorderThickness="1" CornerRadius="6" Background="#0AFFFFFF">
+                <ListBox ItemsSource="{Binding RowsView}" SelectedItem="{Binding SelectedRow, Mode=TwoWay}"
+                         Background="Transparent" BorderThickness="0" Padding="2"
+                         VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                         ScrollViewer.VerticalScrollBarVisibility="Auto">
+                    <ListBox.ItemContainerStyle>
+                        <Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
+                            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                            <Setter Property="Padding" Value="10,8" />
+                            <Setter Property="Margin" Value="0,1" />
+                        </Style>
+                    </ListBox.ItemContainerStyle>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate DataType="{x:Type vm:ComboSetRowViewModel}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="{Binding PrimaryText}" VerticalAlignment="Center"
+                                           FontSize="13" TextTrimming="CharacterEllipsis" />
+                                <Border Grid.Column="1" CornerRadius="3" Padding="5,1" Margin="8,0,0,0" VerticalAlignment="Center"
+                                        Background="{Binding Origin, Converter={StaticResource OriginBrush}}"
+                                        Visibility="{Binding IsCustom, Converter={StaticResource BoolToVis}}">
+                                    <TextBlock Text="{Binding Origin, Converter={StaticResource OriginLabel}}"
+                                               FontSize="9.5" FontWeight="SemiBold" Foreground="White" />
+                                </Border>
+                            </Grid>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Border>
+        </DockPanel>
+
+        <GridSplitter Grid.Column="1" Width="4" Margin="6,0" HorizontalAlignment="Center" VerticalAlignment="Stretch"
+                      Background="#18FFFFFF" />
+
+        <!-- ===== Detail ===== -->
+        <Grid Grid.Column="2">
+
+            <!-- Placeholder -->
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="320"
+                        Visibility="{Binding HasSelection, Converter={StaticResource BoolToVis}, ConverterParameter=invert}">
+                <ui:SymbolIcon Symbol="Link24" FontSize="40" Opacity="0.3" HorizontalAlignment="Center" />
+                <TextBlock Text="Select a combo to view its item sets and bonus, or create a new one."
+                           Opacity="0.5" TextWrapping="Wrap" TextAlignment="Center" Margin="0,12,0,0" />
+            </StackPanel>
+
+            <!-- Full detail (shown for base AND custom; editing is gated by IsEditable) -->
+            <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,0,10,0"
+                          Visibility="{Binding HasSelection, Converter={StaticResource BoolToVis}}">
+                <StackPanel>
+                    <!-- Header: title + origin pill + delete -->
+                    <Grid Margin="0,0,0,12">
+                        <TextBlock Text="Combo" Style="{StaticResource TitleSection}" VerticalAlignment="Center" />
+                        <ui:Button Content="Delete" Appearance="Danger" HorizontalAlignment="Right" VerticalAlignment="Center"
+                                   Command="{Binding DeleteComboSetCommand}"
+                                   Visibility="{Binding IsEditable, Converter={StaticResource BoolToVis}}">
+                            <ui:Button.Icon><ui:SymbolIcon Symbol="Delete24" /></ui:Button.Icon>
+                        </ui:Button>
+                    </Grid>
+
+                    <!-- Base read-only notice -->
+                    <ui:InfoBar Severity="Informational" IsClosable="False" IsOpen="True" Margin="0,0,0,12"
+                                Title="Read-only base combo"
+                                Message="Use “Copy to Import to edit” (top-right) to customise this combo's items or bonus."
+                                Visibility="{Binding IsBaseSelected, Converter={StaticResource BoolToVis}}" />
+
+                    <!-- Item sets -->
+                    <TextBlock Text="ITEM SETS" Style="{StaticResource TitleMicro}" Margin="2,0,0,6" />
+                    <ItemsControl ItemsSource="{Binding Alternatives}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="{x:Type vm:ComboAlternativeViewModel}">
+                                <ui:Card Margin="0,0,0,8" Padding="12,10">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <ItemsControl Grid.Column="0" ItemsSource="{Binding Items}" VerticalAlignment="Center">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate DataType="{x:Type vm:ComboMemberViewModel}">
+                                                    <Border Background="#26FFFFFF" CornerRadius="13" Padding="11,4" Margin="0,2,6,2">
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <TextBlock Text="{Binding DisplayName}" ToolTip="{Binding Aegis}" VerticalAlignment="Center" />
+                                                            <ui:Button Content="✕" Appearance="Transparent" FontSize="10" Padding="6,0" Margin="5,0,-5,0"
+                                                                       VerticalAlignment="Center" ToolTip="Remove item"
+                                                                       Visibility="{Binding DataContext.IsEditable, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}"
+                                                                       Command="{Binding DataContext.RemoveItemCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                       CommandParameter="{Binding}" />
+                                                        </StackPanel>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Top" Margin="8,0,0,0"
+                                                    Visibility="{Binding DataContext.IsEditable, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}">
+                                            <ui:Button ToolTip="Add item to this set" Appearance="Secondary" Padding="8,4"
+                                                       Command="{Binding DataContext.AddItemCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                       CommandParameter="{Binding}">
+                                                <ui:Button.Icon><ui:SymbolIcon Symbol="Add24" /></ui:Button.Icon>
+                                            </ui:Button>
+                                            <ui:Button ToolTip="Remove this item set" Appearance="Transparent" Padding="8,4" Margin="4,0,0,0"
+                                                       Command="{Binding DataContext.RemoveAlternativeCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                       CommandParameter="{Binding}">
+                                                <ui:Button.Icon><ui:SymbolIcon Symbol="Delete24" /></ui:Button.Icon>
+                                            </ui:Button>
+                                        </StackPanel>
+                                    </Grid>
+                                </ui:Card>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <ui:Button Content="Add item set" Appearance="Secondary" HorizontalAlignment="Left" Margin="0,2,0,16"
+                               Command="{Binding AddAlternativeCommand}"
+                               Visibility="{Binding IsEditable, Converter={StaticResource BoolToVis}}"
+                               ToolTip="Add an alternative item set that triggers the same bonus (e.g. a refined variant)">
+                        <ui:Button.Icon><ui:SymbolIcon Symbol="Add24" /></ui:Button.Icon>
+                    </ui:Button>
+
+                    <!-- Shared bonus script -->
+                    <Grid Margin="2,0,0,6">
+                        <TextBlock Text="BONUS SCRIPT" Style="{StaticResource TitleMicro}" VerticalAlignment="Center" />
+                        <ui:Button Content="Bonus builder" Appearance="Secondary" HorizontalAlignment="Right"
+                                   Command="{Binding InsertBonusCommand}"
+                                   Visibility="{Binding IsEditable, Converter={StaticResource BoolToVis}}"
+                                   ToolTip="Build a bonus statement visually and append it">
+                            <ui:Button.Icon><ui:SymbolIcon Symbol="Add24" /></ui:Button.Icon>
+                        </ui:Button>
+                    </Grid>
+                    <Border BorderBrush="#5A8D2DF2" BorderThickness="1" CornerRadius="6" MinHeight="220">
+                        <avalon:TextEditor common:AvalonEditBehavior.BindableText="{Binding Script, Mode=TwoWay}"
+                                           IsReadOnly="{Binding IsEditable, Converter={StaticResource InverseBool}}"
+                                           ShowLineNumbers="True" FontFamily="Consolas" FontSize="12.5"
+                                           Background="{StaticResource ScriptEditorBackground}" Foreground="#E8E8F2"
+                                           LineNumbersForeground="#6E6E88" Padding="2,4,0,0"
+                                           WordWrap="True" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto" />
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+    </Grid>
+</UserControl>

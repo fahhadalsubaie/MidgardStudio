@@ -3,8 +3,8 @@
                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
                  xmlns:vm="clr-namespace:MidgardStudio.App.ViewModels"
-                 Title="Bonus builder"
-                 Width="720" Height="520"
+                 Title="Script Generator"
+                 Width="900" Height="660" MinWidth="720" MinHeight="520"
                  WindowStartupLocation="CenterOwner"
                  WindowBackdropType="Mica"
                  ExtendsContentIntoTitleBar="True"
@@ -17,30 +17,61 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
+            <RowDefinition Height="186" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <ui:TitleBar Grid.Row="0" Title="Bonus builder" />
+        <ui:TitleBar Grid.Row="0" Title="Script Generator" />
 
+        <!-- ===== Browse: categories | effects | configure ===== -->
         <Grid Grid.Row="1" Margin="16,4,16,0">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="260" />
-                <ColumnDefinition Width="14" />
+                <ColumnDefinition Width="168" />
+                <ColumnDefinition Width="12" />
+                <ColumnDefinition Width="248" />
+                <ColumnDefinition Width="12" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
-            <!-- Bonus list -->
+            <!-- Categories -->
             <DockPanel Grid.Column="0">
-                <ui:TextBox DockPanel.Dock="Top" PlaceholderText="Search bonuses…" Margin="0,0,0,8"
+                <TextBlock DockPanel.Dock="Top" Text="CATEGORY" FontSize="10.5" FontWeight="SemiBold" Opacity="0.5" Margin="2,0,0,6" />
+                <Border BorderBrush="#1FFFFFFF" BorderThickness="1" CornerRadius="6" Background="#0AFFFFFF">
+                    <ListBox ItemsSource="{Binding Categories}" SelectedItem="{Binding SelectedCategory, Mode=TwoWay}"
+                             Background="Transparent" BorderThickness="0" Padding="2"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                        <ListBox.ItemContainerStyle>
+                            <Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
+                                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                <Setter Property="Padding" Value="8,5" />
+                            </Style>
+                        </ListBox.ItemContainerStyle>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate><TextBlock Text="{Binding}" TextTrimming="CharacterEllipsis" /></DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </Border>
+            </DockPanel>
+
+            <!-- Effects -->
+            <DockPanel Grid.Column="2">
+                <ui:TextBox DockPanel.Dock="Top" PlaceholderText="Search effects…" Margin="0,0,0,8"
                             Text="{Binding Search, UpdateSourceTrigger=PropertyChanged}" />
-                <Border BorderBrush="#1FFFFFFF" BorderThickness="1" CornerRadius="6">
+                <Border BorderBrush="#1FFFFFFF" BorderThickness="1" CornerRadius="6" Background="#0AFFFFFF">
                     <ListBox ItemsSource="{Binding Definitions}" SelectedItem="{Binding Selected, Mode=TwoWay}"
-                             Background="Transparent" BorderThickness="0">
+                             Background="Transparent" BorderThickness="0" Padding="2"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                        <ListBox.ItemContainerStyle>
+                            <Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
+                                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                <Setter Property="Padding" Value="8,5" />
+                            </Style>
+                        </ListBox.ItemContainerStyle>
                         <ListBox.ItemTemplate>
                             <DataTemplate>
-                                <StackPanel Margin="0,2">
-                                    <TextBlock Text="{Binding Display}" TextWrapping="Wrap" />
-                                    <TextBlock Text="{Binding Name}" Opacity="0.5" FontSize="11" FontFamily="Consolas" />
+                                <StackPanel Margin="0,1">
+                                    <TextBlock Text="{Binding Display}" TextWrapping="Wrap" FontWeight="Medium" />
+                                    <TextBlock Text="{Binding Name}" Opacity="0.45" FontSize="10.5" FontFamily="Consolas" />
                                 </StackPanel>
                             </DataTemplate>
                         </ListBox.ItemTemplate>
@@ -48,42 +79,75 @@
                 </Border>
             </DockPanel>
 
-            <!-- Parameters + preview -->
-            <DockPanel Grid.Column="2">
-                <StackPanel DockPanel.Dock="Top">
+            <!-- Configure selected effect -->
+            <DockPanel Grid.Column="4">
+                <StackPanel DockPanel.Dock="Top" Visibility="{Binding HasSelection, Converter={StaticResource BoolToVis}}">
                     <TextBlock Text="{Binding Selected.Display}" FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap" />
-                    <TextBlock Text="{Binding Selected.Name}" Opacity="0.5" FontFamily="Consolas" Margin="0,2,0,10" />
+                    <TextBlock Text="{Binding Selected.Description}" Opacity="0.7" TextWrapping="Wrap" Margin="0,3,0,2" LineHeight="18" />
+                    <TextBlock Text="{Binding Selected.Name}" Opacity="0.4" FontFamily="Consolas" FontSize="11" Margin="0,0,0,8" />
+                    <Separator Margin="0,0,0,6" />
                 </StackPanel>
 
+                <!-- Single-effect preview + add button -->
                 <Border DockPanel.Dock="Bottom" BorderBrush="#2EFFFFFF" BorderThickness="1" CornerRadius="6"
                         Background="#1A000000" Padding="10,8" Margin="0,12,0,0">
-                    <StackPanel>
-                        <TextBlock Text="Generated bonus" Opacity="0.55" FontSize="11" Margin="0,0,0,4" />
-                        <TextBox Text="{Binding Preview, Mode=OneWay}" IsReadOnly="True" BorderThickness="0"
-                                 Background="Transparent" FontFamily="Consolas" FontSize="13.5" Foreground="#9CDCFE"
-                                 TextWrapping="Wrap" />
-                    </StackPanel>
+                    <DockPanel>
+                        <ui:Button DockPanel.Dock="Right" VerticalAlignment="Center" Content="Add to script" Appearance="Primary"
+                                   Margin="10,0,0,0" Command="{Binding AddEffectCommand}"
+                                   ToolTip="Append this effect to the script you're building (below)">
+                            <ui:Button.Icon><ui:SymbolIcon Symbol="Add24" /></ui:Button.Icon>
+                        </ui:Button>
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="THIS EFFECT" Opacity="0.5" FontSize="10" FontWeight="SemiBold" Margin="0,0,0,2" />
+                            <TextBox Text="{Binding Preview, Mode=OneWay}" IsReadOnly="True" BorderThickness="0"
+                                     Background="Transparent" FontFamily="Consolas" FontSize="13.5" Foreground="#C9A6FF"
+                                     TextWrapping="Wrap" />
+                        </StackPanel>
+                    </DockPanel>
                 </Border>
 
+                <!-- Parameter editors -->
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <ItemsControl ItemsSource="{Binding Inputs}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <Grid Margin="0,4">
+                                <Grid Margin="0,5">
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="120" />
+                                        <ColumnDefinition Width="138" />
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Text="{Binding Name}" VerticalAlignment="Center" Opacity="0.85" />
+                                    <StackPanel VerticalAlignment="Center" Margin="0,0,8,0">
+                                        <TextBlock Text="{Binding Name}" Opacity="0.9" />
+                                        <TextBlock Text="{Binding Hint}" Opacity="0.45" FontSize="10.5" TextWrapping="Wrap"
+                                                   Visibility="{Binding HasHint, Converter={StaticResource BoolToVis}}" />
+                                    </StackPanel>
 
                                     <ComboBox Grid.Column="1" ItemsSource="{Binding Options}" DisplayMemberPath="Label"
                                               SelectedValuePath="Value" SelectedValue="{Binding Value, Mode=TwoWay}"
+                                              VerticalAlignment="Center"
                                               Visibility="{Binding IsEnum, Converter={StaticResource BoolToVis}}" />
                                     <ui:TextBox Grid.Column="1" Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}"
+                                                VerticalAlignment="Center"
                                                 Visibility="{Binding IsNumber, Converter={StaticResource BoolToVis}}" />
                                     <ui:TextBox Grid.Column="1" Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}"
-                                                PlaceholderText="e.g. AL_HEAL"
+                                                VerticalAlignment="Center" PlaceholderText="{Binding Hint}"
                                                 Visibility="{Binding IsText, Converter={StaticResource BoolToVis}}" />
+
+                                    <Grid Grid.Column="1" VerticalAlignment="Center"
+                                          Visibility="{Binding IsSkill, Converter={StaticResource BoolToVis}}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <ui:TextBox Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}"
+                                                    PlaceholderText="pick or type a skill" />
+                                        <ui:Button Grid.Column="1" Content="Pick…" Margin="6,0,0,0"
+                                                   Command="{Binding DataContext.PickSkillCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                   CommandParameter="{Binding}"
+                                                   Visibility="{Binding DataContext.CanPickSkill, RelativeSource={RelativeSource AncestorType=ItemsControl}, Converter={StaticResource BoolToVis}}">
+                                            <ui:Button.Icon><ui:SymbolIcon Symbol="Search24" /></ui:Button.Icon>
+                                        </ui:Button>
+                                    </Grid>
                                 </Grid>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
@@ -92,8 +156,63 @@
             </DockPanel>
         </Grid>
 
-        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="16,12,16,16">
-            <ui:Button x:Name="InsertButton" Content="Insert bonus" Appearance="Primary" MinWidth="110" Margin="0,0,8,0" />
+        <!-- ===== The script being built ===== -->
+        <Border Grid.Row="2" Margin="16,12,16,0" BorderBrush="#1FFFFFFF" BorderThickness="1" CornerRadius="6" Background="#0AFFFFFF">
+            <Grid Margin="12,10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="14" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <!-- recipe -->
+                <DockPanel Grid.Column="0">
+                    <Grid DockPanel.Dock="Top" Margin="0,0,0,6">
+                        <TextBlock Text="YOUR SCRIPT" FontSize="10.5" FontWeight="SemiBold" Opacity="0.5" VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding RecipeCountText}" FontSize="11" Opacity="0.5" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                    </Grid>
+                    <ui:Button DockPanel.Dock="Bottom" Content="Clear all" Appearance="Transparent" HorizontalAlignment="Left"
+                               Margin="0,4,0,0" Padding="6,2" FontSize="11" Command="{Binding ClearRecipeCommand}"
+                               Visibility="{Binding HasRecipe, Converter={StaticResource BoolToVis}}" />
+                    <ListBox ItemsSource="{Binding Recipe}" Background="Transparent" BorderThickness="0"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Margin="0,1">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="{Binding Label}" FontSize="11.5" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Text="{Binding Code}" FontFamily="Consolas" FontSize="11" Opacity="0.55"
+                                                   TextTrimming="CharacterEllipsis" />
+                                    </StackPanel>
+                                    <ui:Button Grid.Column="1" Content="✕" Appearance="Transparent" FontSize="11" Padding="6,0"
+                                               VerticalAlignment="Center" ToolTip="Remove this effect"
+                                               Command="{Binding DataContext.RemoveLineCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                               CommandParameter="{Binding}" />
+                                </Grid>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+
+                <!-- combined preview -->
+                <DockPanel Grid.Column="2">
+                    <TextBlock DockPanel.Dock="Top" Text="FINAL SCRIPT (inserted on OK)" FontSize="10.5" FontWeight="SemiBold"
+                               Opacity="0.5" Margin="0,0,0,6" />
+                    <Border BorderBrush="#22FFFFFF" BorderThickness="1" CornerRadius="4" Background="#16000000">
+                        <TextBox Text="{Binding FullScript, Mode=OneWay}" IsReadOnly="True" BorderThickness="0"
+                                 Background="Transparent" FontFamily="Consolas" FontSize="12.5" Foreground="#C9A6FF"
+                                 Padding="8,6" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" />
+                    </Border>
+                </DockPanel>
+            </Grid>
+        </Border>
+
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="16,12,16,16">
+            <ui:Button x:Name="InsertButton" Content="Insert into script" Appearance="Primary" MinWidth="140" Margin="0,0,8,0" />
             <ui:Button x:Name="CancelButton" Content="Cancel" MinWidth="84" />
         </StackPanel>
     </Grid>

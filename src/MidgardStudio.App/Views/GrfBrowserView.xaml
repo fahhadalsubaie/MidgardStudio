@@ -186,11 +186,10 @@
                                Command="{Binding ReloadCommand}" ToolTip="Reload sources from the profile">
                         <ui:Button.Icon><ui:SymbolIcon Symbol="ArrowSync24" FontSize="14" /></ui:Button.Icon>
                     </ui:Button>
-                    <TextBlock Text="GRF Browser" FontWeight="SemiBold" FontSize="13"
-                               Foreground="{DynamicResource TextFillColorPrimaryBrush}" VerticalAlignment="Center" />
+                    <TextBlock Text="GRF Browser" Style="{StaticResource TitleSection}" VerticalAlignment="Center" />
                 </DockPanel>
 
-                <TextBlock Grid.Row="1" Text="ARCHIVES" FontSize="10" FontWeight="SemiBold" Opacity="0.45"
+                <TextBlock Grid.Row="1" Text="ARCHIVES" Style="{StaticResource TitleMicro}"
                            Margin="2,0,0,4" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
                 <ListBox Grid.Row="2" ItemsSource="{Binding Sources}" SelectedItem="{Binding SelectedSource, Mode=TwoWay}"
                          ItemContainerStyle="{StaticResource GrfRowItem}" Background="Transparent" BorderThickness="0"
@@ -386,7 +385,7 @@
                                         </ItemsControl.ItemTemplate>
                                     </ItemsControl>
 
-                                    <TextBlock Text="RESOURCES" FontSize="10" FontWeight="SemiBold" Opacity="0.4" Margin="0,14,0,4"
+                                    <TextBlock Text="RESOURCES" Style="{StaticResource TitleMicro}" Margin="0,14,0,4"
                                                Foreground="{DynamicResource TextFillColorPrimaryBrush}"
                                                Visibility="{Binding InfoItems.Count, Converter={StaticResource CountToVis}}" />
                                     <ItemsControl ItemsSource="{Binding InfoItems}">
@@ -398,7 +397,7 @@
                                         </ItemsControl.ItemTemplate>
                                     </ItemsControl>
 
-                                    <TextBlock Text="TEXTURES" FontSize="10" FontWeight="SemiBold" Opacity="0.4" Margin="0,14,0,6"
+                                    <TextBlock Text="TEXTURES" Style="{StaticResource TitleMicro}" Margin="0,14,0,6"
                                                Foreground="{DynamicResource TextFillColorPrimaryBrush}"
                                                Visibility="{Binding Thumbs.Count, Converter={StaticResource CountToVis}}" />
                                     <ItemsControl ItemsSource="{Binding Thumbs}">

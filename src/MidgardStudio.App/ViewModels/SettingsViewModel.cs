@@ -1,7 +1,6 @@
 using System;
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
-using MidgardStudio.App.Common;
 using MidgardStudio.App.Services;
 
 namespace MidgardStudio.App.ViewModels;
@@ -42,7 +41,6 @@ public sealed partial class SettingsViewModel : ObservableObject
         _onChanged = onChanged;
         _mode = settings.Settings.SaveMode;
         _intervalSeconds = settings.Settings.SaveIntervalSeconds;
-        _scrollSound = settings.Settings.ScrollSound;
         _backupRetention = settings.Settings.BackupRetention;
 
         foreach (var (key, display, def) in AppSettingsService.ShortcutDefs)
@@ -65,15 +63,7 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     [ObservableProperty] private SaveMode _mode;
     [ObservableProperty] private int _intervalSeconds;
-    [ObservableProperty] private bool _scrollSound;
     [ObservableProperty] private int _backupRetention;
-
-    partial void OnScrollSoundChanged(bool value)
-    {
-        _settings.Settings.ScrollSound = value;
-        ScrollSoundPlayer.Enabled = value;
-        _settings.Save();
-    }
 
     partial void OnBackupRetentionChanged(int value)
     {

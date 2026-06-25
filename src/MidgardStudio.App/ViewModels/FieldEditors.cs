@@ -165,10 +165,10 @@ public sealed class ScriptFieldEditorViewModel : FieldEditorViewModel
     {
         if (!IsEditable) return;
         var dialog = new BonusBuilderDialog { Owner = System.Windows.Application.Current.MainWindow };
-        if (dialog.ShowDialog() == true && !string.IsNullOrWhiteSpace(dialog.Statement))
+        if (dialog.ShowDialog() == true && !string.IsNullOrWhiteSpace(dialog.Result))
         {
             var current = Value;
-            Value = string.IsNullOrWhiteSpace(current) ? dialog.Statement : current.TrimEnd() + "\n" + dialog.Statement;
+            Value = string.IsNullOrWhiteSpace(current) ? dialog.Result : current.TrimEnd() + "\n" + dialog.Result;
         }
     }
 

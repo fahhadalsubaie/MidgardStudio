@@ -18,6 +18,46 @@
     <common:CountToVisibilityConverter x:Key="CountToVis" />
     <common:BoolToTextWrappingConverter x:Key="BoolToWrap" />
 
+    <!-- Dark "magic-bento" background for script editors (a subtle purple glow over near-black) so the
+         code area is themed instead of a plain white box. Reused by every script editor in the app. -->
+    <RadialGradientBrush x:Key="ScriptEditorBackground" GradientOrigin="0.08,0" Center="0.08,0" RadiusX="1.0" RadiusY="1.5">
+        <GradientStop Color="#2A1B40" Offset="0.0" />
+        <GradientStop Color="#130F1E" Offset="0.5" />
+        <GradientStop Color="#0A0810" Offset="1.0" />
+    </RadialGradientBrush>
+
+    <!-- ===== Design-system title styles =====
+         Reusable heading tiers with the animated logo gradient (purple → magenta → lavender) applied to
+         the glyphs themselves — no borders. The animation is driven by the GradientText attached behaviour
+         (a code-built, mutable brush), so it never animates a frozen Style-setter resource. Use these
+         instead of ad-hoc FontSize so every heading is consistent. -->
+    <Style x:Key="TitleScreen" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="20" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="common:GradientText.Enabled" Value="True" />
+    </Style>
+    <Style x:Key="TitleSection" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="13.5" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="common:GradientText.Enabled" Value="True" />
+    </Style>
+    <Style x:Key="TitleMicro" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="common:GradientText.Enabled" Value="True" />
+    </Style>
+    <!-- Back-compat alias (existing markup referenced SectionTitle). -->
+    <Style x:Key="SectionTitle" TargetType="TextBlock" BasedOn="{StaticResource TitleSection}" />
+
+    <!-- Non-gradient text primitives (labels / values) so body text is consistent too. -->
+    <Style x:Key="FieldLabelText" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="11.5" />
+        <Setter Property="Opacity" Value="0.7" />
+    </Style>
+    <Style x:Key="FieldValueText" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="12.5" />
+    </Style>
+
     <Style x:Key="FieldLabel" TargetType="TextBlock">
         <Setter Property="VerticalAlignment" Value="Center" />
         <Setter Property="Opacity" Value="0.85" />
@@ -261,7 +301,7 @@
     <DataTemplate DataType="{x:Type vm:FieldGroupViewModel}">
         <ui:Card Margin="0,0,0,6" Padding="10,5">
             <StackPanel TextElement.FontSize="11.5">
-                <TextBlock Text="{Binding Title}" FontWeight="SemiBold" Opacity="0.7" FontSize="11.5"
+                <TextBlock Text="{Binding Title}" Style="{StaticResource TitleSection}"
                            Margin="0,0,0,3" />
                 <ItemsControl ItemsSource="{Binding Fields}" />
             </StackPanel>
@@ -333,67 +373,145 @@
     <!-- ===== Full (popup) editors for wide fields ===== -->
 
     <DataTemplate x:Key="BoolMapFullTemplate">
-        <ItemsControl ItemsSource="{Binding Chips}" IsEnabled="{Binding IsEditable}">
-            <ItemsControl.ItemsPanel>
-                <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
-            </ItemsControl.ItemsPanel>
-            <ItemsControl.ItemTemplate>
-                <DataTemplate>
-                    <ToggleButton Content="{Binding Label}" ToolTip="{Binding Key}" IsChecked="{Binding IsSelected}" Margin="2" Padding="9,4" />
-                </DataTemplate>
-            </ItemsControl.ItemTemplate>
-        </ItemsControl>
-    </DataTemplate>
-
-    <DataTemplate x:Key="ObjectFullTemplate">
-        <ItemsControl ItemsSource="{Binding Children}" />
-    </DataTemplate>
-
-    <DataTemplate x:Key="ObjectListFullTemplate">
-        <DockPanel>
-            <ui:Button DockPanel.Dock="Top" HorizontalAlignment="Left" Content="Add" Margin="0,0,0,8"
-                       Command="{Binding AddRowCommand}" IsEnabled="{Binding IsEditable}">
-                <ui:Button.Icon><ui:SymbolIcon Symbol="Add24" /></ui:Button.Icon>
-            </ui:Button>
-            <ItemsControl ItemsSource="{Binding Rows}">
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <ItemsControl ItemsSource="{Binding Chips}" IsEnabled="{Binding IsEditable}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
-                        <Border BorderBrush="#22FFFFFF" BorderThickness="0,0,0,1" Padding="0,4">
-                            <DockPanel>
-                                <ui:Button DockPanel.Dock="Right" VerticalAlignment="Top" Content="✕"
-                                           Command="{Binding DataContext.RemoveRowCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                           CommandParameter="{Binding}" />
-                                <ItemsControl ItemsSource="{Binding Cells}" />
-                            </DockPanel>
-                        </Border>
+                        <ToggleButton Content="{Binding Label}" ToolTip="{Binding Key}" IsChecked="{Binding IsSelected}" Margin="2" Padding="9,4" />
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
-        </DockPanel>
+        </ScrollViewer>
+    </DataTemplate>
+
+    <DataTemplate x:Key="ObjectFullTemplate">
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <ItemsControl ItemsSource="{Binding Children}" />
+        </ScrollViewer>
+    </DataTemplate>
+
+    <!-- Object-list editor: a virtualized master list of entries + a detail form for the selected one.
+         Only the selected entry's fields are realized, so large lists (e.g. item-group sub-groups) stay
+         fast and never blow up the visual tree. -->
+    <DataTemplate x:Key="ObjectListFullTemplate">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <!-- Toolbar: add + count -->
+            <Grid Grid.Row="0" Margin="0,0,0,10">
+                <ui:Button HorizontalAlignment="Left" Content="Add entry"
+                           Command="{Binding AddRowCommand}" IsEnabled="{Binding IsEditable}">
+                    <ui:Button.Icon><ui:SymbolIcon Symbol="Add24" /></ui:Button.Icon>
+                </ui:Button>
+                <TextBlock HorizontalAlignment="Right" VerticalAlignment="Center" Opacity="0.55"
+                           FontSize="12" Text="{Binding Summary}" />
+            </Grid>
+
+            <!-- Master (entries) | Detail (selected entry's fields) -->
+            <Grid Grid.Row="1">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="252" MinWidth="190" />
+                    <ColumnDefinition Width="14" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <!-- Master: search + virtualized list -->
+                <Grid Grid.Column="0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <ui:TextBox Grid.Row="0" Margin="0,0,0,6" PlaceholderText="Search entries…"
+                                Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" />
+                    <Border Grid.Row="1" BorderBrush="#1FFFFFFF" BorderThickness="1" CornerRadius="6"
+                            Background="#0AFFFFFF">
+                    <ListBox ItemsSource="{Binding RowsView}" SelectedItem="{Binding SelectedRow, Mode=TwoWay}"
+                             Background="Transparent" BorderThickness="0" Padding="2"
+                             VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                             ScrollViewer.VerticalScrollBarVisibility="Auto">
+                        <ListBox.ItemContainerStyle>
+                            <Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
+                                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                <Setter Property="Padding" Value="8,5" />
+                                <Setter Property="Margin" Value="0,1" />
+                            </Style>
+                        </ListBox.ItemContainerStyle>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="{Binding PrimaryText}" FontWeight="SemiBold"
+                                                   TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Text="{Binding SecondaryText}" Opacity="0.55" FontSize="11"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   Visibility="{Binding SecondaryText, Converter={StaticResource StringToVis}}" />
+                                    </StackPanel>
+                                    <ui:Button Grid.Column="1" Content="✕" Appearance="Transparent"
+                                               Padding="6,0" Margin="4,0,0,0" VerticalAlignment="Center" FontSize="11"
+                                               ToolTip="Remove this entry"
+                                               Visibility="{Binding DataContext.IsEditable, RelativeSource={RelativeSource AncestorType=ListBox}, Converter={StaticResource BoolToVis}}"
+                                               Command="{Binding DataContext.RemoveRowCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                               CommandParameter="{Binding}" />
+                                </Grid>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                    </Border>
+                </Grid>
+
+                <!-- Detail: the selected entry's fields, or a placeholder when nothing is selected -->
+                <Grid Grid.Column="2">
+                    <TextBlock Text="Select an entry on the left to edit its fields, or add a new one."
+                               TextWrapping="Wrap" TextAlignment="Center" Opacity="0.5" MaxWidth="300"
+                               HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding SelectedRow}" Value="{x:Null}">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                  Visibility="{Binding SelectedRow, Converter={StaticResource NotNullToVis}}">
+                        <ItemsControl ItemsSource="{Binding SelectedRow.Cells}" Margin="0,0,4,0" />
+                    </ScrollViewer>
+                </Grid>
+            </Grid>
+        </Grid>
     </DataTemplate>
 
     <DataTemplate x:Key="ScriptFullTemplate">
         <DockPanel MinHeight="360">
             <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
-                <ui:Button Content="＋ Bonus builder" Command="{Binding InsertBonusCommand}" IsEnabled="{Binding IsEditable}"
-                           ToolTip="Build a bonus statement visually (enum-aware) and append it to the script">
-                    <ui:Button.Icon><ui:SymbolIcon Symbol="Add24" /></ui:Button.Icon>
+                <ui:Button Content="Script generator" Appearance="Primary" Command="{Binding InsertBonusCommand}" IsEnabled="{Binding IsEditable}"
+                           ToolTip="Open the visual script generator — pick effects in plain English (no scripting needed), preview them live, and insert one or many at once">
+                    <ui:Button.Icon><ui:SymbolIcon Symbol="Sparkle24" /></ui:Button.Icon>
                 </ui:Button>
+                <TextBlock Text="No scripting needed — browse effects by category, set values, stack as many as you like."
+                           VerticalAlignment="Center" Opacity="0.5" FontSize="11.5" Margin="12,0,0,0" TextTrimming="CharacterEllipsis" />
             </StackPanel>
-            <Expander DockPanel.Dock="Right" Header="Bonuses" Width="230" Margin="8,0,0,0">
-                <ListBox ItemsSource="{Binding Catalog.Entries}" FontFamily="Consolas" FontSize="11">
-                    <ListBox.ItemTemplate>
-                        <DataTemplate>
-                            <TextBlock Text="{Binding Token}" ToolTip="{Binding Hint}" />
-                        </DataTemplate>
-                    </ListBox.ItemTemplate>
-                </ListBox>
-            </Expander>
-            <Border BorderBrush="#33FFFFFF" BorderThickness="1" CornerRadius="4">
+            <Border BorderBrush="#5A8D2DF2" BorderThickness="1" CornerRadius="6">
                 <avalon:TextEditor common:AvalonEditBehavior.BindableText="{Binding Value, Mode=TwoWay}"
                                    IsReadOnly="{Binding IsEditable, Converter={StaticResource InverseBool}}"
                                    ShowLineNumbers="True" FontFamily="Consolas" FontSize="12.5"
-                                   WordWrap="False" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" />
+                                   Background="{StaticResource ScriptEditorBackground}" Foreground="#E8E8F2"
+                                   LineNumbersForeground="#6E6E88" Padding="2,4,0,0"
+                                   WordWrap="True" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto" />
             </Border>
         </DockPanel>
     </DataTemplate>
@@ -572,7 +690,7 @@
     <DataTemplate DataType="{x:Type vm:DropListViewModel}">
         <DockPanel>
             <Grid DockPanel.Dock="Top" Margin="0,0,0,6">
-                <TextBlock Text="{Binding Title}" FontWeight="SemiBold" VerticalAlignment="Center" Opacity="0.9" />
+                <TextBlock Text="{Binding Title}" Style="{StaticResource SectionTitle}" FontWeight="SemiBold" VerticalAlignment="Center" />
                 <ui:Button HorizontalAlignment="Right" Content="Add" Padding="9,2" Command="{Binding AddDropCommand}"
                            IsEnabled="{Binding IsEditable}" ToolTip="Add a drop">
                     <ui:Button.Icon><ui:SymbolIcon Symbol="Add24" /></ui:Button.Icon>
@@ -650,7 +768,7 @@
         <ui:Card Padding="14,12">
             <StackPanel>
                 <DockPanel Margin="0,0,0,10">
-                    <TextBlock Text="Drop tables" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" />
+                    <TextBlock Text="Drop tables" Style="{StaticResource TitleSection}" VerticalAlignment="Center" />
                     <TextBlock DockPanel.Dock="Right" HorizontalAlignment="Right" VerticalAlignment="Center"
                                Text="Read-only — create an override to edit" Opacity="0.55" FontSize="11"
                                Visibility="{Binding IsEditable, Converter={StaticResource BoolToVis}, ConverterParameter=invert}" />
@@ -673,7 +791,7 @@
         <ui:Card Padding="14,12">
             <DockPanel>
                 <DockPanel DockPanel.Dock="Top" Margin="0,0,0,10">
-                    <TextBlock Text="Dropped by" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" />
+                    <TextBlock Text="Dropped by" Style="{StaticResource TitleSection}" VerticalAlignment="Center" />
                     <TextBlock DockPanel.Dock="Right" HorizontalAlignment="Right" VerticalAlignment="Center"
                                Text="{Binding Summary}" Opacity="0.6" FontSize="11" />
                 </DockPanel>

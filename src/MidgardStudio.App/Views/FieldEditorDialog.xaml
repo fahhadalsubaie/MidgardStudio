@@ -4,7 +4,7 @@
                  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
                  xmlns:common="clr-namespace:MidgardStudio.App.Common"
                  Title="Edit"
-                 Width="560" Height="560" MinWidth="380" MinHeight="260"
+                 Width="820" Height="620" MinWidth="520" MinHeight="340"
                  WindowStartupLocation="CenterOwner"
                  WindowBackdropType="Mica"
                  ExtendsContentIntoTitleBar="True"
@@ -21,9 +21,10 @@
 
         <ui:TitleBar x:Name="TitleBarCtl" Grid.Row="0" Title="Edit" />
 
-        <ScrollViewer Grid.Row="1" Margin="14,4,14,0" VerticalScrollBarVisibility="Auto">
-            <ContentControl x:Name="Host" ContentTemplateSelector="{StaticResource FullEditorSelector}" />
-        </ScrollViewer>
+        <!-- No outer ScrollViewer: each full template manages its own scrolling so list editors can
+             virtualize (an enclosing ScrollViewer would give them infinite height and realize every row). -->
+        <ContentControl Grid.Row="1" x:Name="Host" Margin="14,4,14,0"
+                        ContentTemplateSelector="{StaticResource FullEditorSelector}" />
 
         <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="14">
             <ui:Button x:Name="CloseButton" Content="Done" Appearance="Primary" MinWidth="92" />

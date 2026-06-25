@@ -5,11 +5,12 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
              xmlns:vm="clr-namespace:MidgardStudio.App.ViewModels"
+             xmlns:common="clr-namespace:MidgardStudio.App.Common"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance Type=vm:SettingsViewModel}">
 
     <DockPanel>
-        <TextBlock DockPanel.Dock="Top" Text="Settings" FontSize="20" FontWeight="SemiBold" Margin="0,0,0,12" />
+        <TextBlock DockPanel.Dock="Top" Text="Settings" Style="{StaticResource TitleScreen}" Margin="0,0,0,12" />
 
         <TabControl Background="Transparent" BorderThickness="0">
             <!-- ===== General ===== -->
@@ -18,7 +19,7 @@
                     <StackPanel MaxWidth="640" HorizontalAlignment="Left">
                         <ui:Card Padding="16,14">
                             <StackPanel>
-                                <TextBlock Text="Saving behaviour" FontWeight="SemiBold" Opacity="0.8" Margin="0,0,0,4" />
+                                <TextBlock Text="Saving behaviour" Style="{StaticResource SectionTitle}" FontWeight="SemiBold" Margin="0,0,0,4" />
                                 <TextBlock Opacity="0.6" FontSize="12" TextWrapping="Wrap" Margin="0,0,0,12"
                                            Text="Choose when edits are written to disk. Auto-save writes safely (in-place, never overwriting your functions) but only manual saves create a dated restore point in the Backup Manager." />
 
@@ -49,15 +50,7 @@
 
                         <ui:Card Padding="16,14" Margin="0,12,0,0">
                             <StackPanel>
-                                <TextBlock Text="Interface" FontWeight="SemiBold" Opacity="0.8" Margin="0,0,0,8" />
-                                <ui:ToggleSwitch Content="Bike-chain scroll sound" IsChecked="{Binding ScrollSound}" />
-                                <TextBlock Text="Plays a soft ratchet click while scrolling the item / mob lists." Opacity="0.6" FontSize="12" Margin="0,4,0,0" />
-                            </StackPanel>
-                        </ui:Card>
-
-                        <ui:Card Padding="16,14" Margin="0,12,0,0">
-                            <StackPanel>
-                                <TextBlock Text="Backups" FontWeight="SemiBold" Opacity="0.8" Margin="0,0,0,8" />
+                                <TextBlock Text="Backups" Style="{StaticResource SectionTitle}" FontWeight="SemiBold" Margin="0,0,0,8" />
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Text="Keep the newest" VerticalAlignment="Center" Opacity="0.75" Margin="0,0,8,0" />
                                     <ui:TextBox Width="72" Text="{Binding BackupRetention, UpdateSourceTrigger=LostFocus}" />
@@ -76,20 +69,21 @@
                     <StackPanel MaxWidth="640" HorizontalAlignment="Left">
                         <ui:Card Padding="16,14">
                             <StackPanel>
-                                <TextBlock Text="Keyboard shortcuts" FontWeight="SemiBold" Opacity="0.8" Margin="0,0,0,4" />
+                                <TextBlock Text="Keyboard shortcuts" Style="{StaticResource SectionTitle}" FontWeight="SemiBold" Margin="0,0,0,4" />
                                 <TextBlock Opacity="0.6" FontSize="12" TextWrapping="Wrap" Margin="0,0,0,12"
-                                           Text="Type a gesture like Ctrl+S, Ctrl+Shift+Z, or Alt+F4. Changes apply immediately. Clear a field to disable that shortcut." />
+                                           Text="Click a field and press the keys you want — including combinations like Ctrl+Shift+F. Changes apply immediately. Backspace clears a shortcut; Esc cancels." />
                                 <ItemsControl ItemsSource="{Binding Shortcuts}">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
                                             <Grid Margin="0,4">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="220" />
-                                                    <ColumnDefinition Width="180" />
+                                                    <ColumnDefinition Width="200" />
                                                 </Grid.ColumnDefinitions>
                                                 <TextBlock Text="{Binding Display}" VerticalAlignment="Center" Opacity="0.9" />
-                                                <ui:TextBox Grid.Column="1" Text="{Binding Gesture, UpdateSourceTrigger=LostFocus}"
-                                                            PlaceholderText="e.g. Ctrl+S" />
+                                                <ui:TextBox Grid.Column="1" Text="{Binding Gesture, Mode=TwoWay}"
+                                                            common:ShortcutCapture.Enabled="True"
+                                                            PlaceholderText="Press a shortcut…" />
                                             </Grid>
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>

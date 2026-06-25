@@ -13,7 +13,7 @@
         <!-- Header + toolbar -->
         <Grid DockPanel.Dock="Top" Margin="0,0,0,10">
             <StackPanel>
-                <TextBlock Text="Map Cache Editor" FontSize="20" FontWeight="SemiBold" />
+                <TextBlock Text="Map Cache Editor" Style="{StaticResource TitleScreen}" />
                 <TextBlock Opacity="0.65" FontSize="12" TextWrapping="Wrap"
                            Text="Read-only base from re + pre-re. Add maps from .gat, merge another map_cache.dat, then Save — edits are written only to db/import/map_cache.dat." />
             </StackPanel>
@@ -51,7 +51,6 @@
             <ListView x:Name="MapList" ItemsSource="{Binding Rows}" SelectedItem="{Binding Selected, Mode=TwoWay}"
                       Background="Transparent" BorderThickness="0"
                       ItemContainerStyle="{StaticResource MasterListItem}"
-                      common:ScrollSound.Enabled="True"
                       ScrollViewer.VerticalScrollBarVisibility="Visible">
                 <ListView.ContextMenu>
                     <ContextMenu>

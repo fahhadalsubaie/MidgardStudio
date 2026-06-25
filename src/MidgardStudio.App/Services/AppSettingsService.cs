@@ -21,9 +21,6 @@ public sealed class AppSettings
     public SaveMode SaveMode { get; set; } = SaveMode.Manual;
     public int SaveIntervalSeconds { get; set; } = 60;
 
-    /// <summary>Play a bike-chain ratchet click while scrolling the lists.</summary>
-    public bool ScrollSound { get; set; } = true;
-
     /// <summary>User-overridden keyboard shortcuts, keyed by action (e.g. "Save" → "Ctrl+S").</summary>
     public Dictionary<string, string> Shortcuts { get; set; } = new();
 
@@ -40,7 +37,12 @@ public sealed class AppSettingsService
         ("Save", "Save", "Ctrl+S"),
         ("Undo", "Undo", "Ctrl+Z"),
         ("Redo", "Redo", "Ctrl+Y"),
+        ("NewEntry", "New entry", "Ctrl+N"),
+        ("Forge", "Forge new item", "Ctrl+Shift+N"),
+        ("FindInList", "Find in current list", "Ctrl+F"),
+        ("FindEverywhere", "Find in all databases", "Ctrl+Shift+F"),
         ("QuickOpen", "Quick open", "Ctrl+K"),
+        ("Reload", "Reload database", "F5"),
         ("Configuration", "Profiles & configuration", "Ctrl+OemComma"),
     };
 

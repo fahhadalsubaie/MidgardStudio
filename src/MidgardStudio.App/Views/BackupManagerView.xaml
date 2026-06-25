@@ -12,7 +12,7 @@
         <!-- Toolbar -->
         <Grid DockPanel.Dock="Top" Margin="0,0,0,12">
             <StackPanel>
-                <TextBlock Text="Backup Manager" FontSize="20" FontWeight="SemiBold" />
+                <TextBlock Text="Backup Manager" Style="{StaticResource TitleScreen}" />
                 <TextBlock Opacity="0.65" FontSize="12" TextWrapping="Wrap"
                            Text="A snapshot of your import data and client itemInfo is taken automatically after every save. Restore any point in time below." />
             </StackPanel>

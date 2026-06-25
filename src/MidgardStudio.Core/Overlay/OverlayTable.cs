@@ -91,6 +91,27 @@ public sealed class OverlayTable
         _importDirty = true;
     }
 
+    /// <summary>Appends an import record by reference, bypassing key de-duplication. For keyless DBs
+    /// (e.g. item_combos) whose computed key changes as the record is edited, so two in-progress entries
+    /// must not collide on a transient shared key. The record is written verbatim on save.</summary>
+    public void AddImportRaw(DbRecord record)
+    {
+        record.Origin = RecordOrigin.NewCustom;
+        _import.Records.Add(record);
+        _importDirty = true;
+    }
+
+    /// <summary>Removes an import record by reference (pairs with <see cref="AddImportRaw"/>).</summary>
+    public bool RemoveImportRaw(DbRecord record)
+    {
+        var key = record.Key;
+        if (_import.ByKey.TryGetValue(key, out var byKey) && ReferenceEquals(byKey, record))
+            _import.ByKey.Remove(key);
+        bool removed = _import.Records.Remove(record);
+        if (removed) _importDirty = true;
+        return removed;
+    }
+
     /// <summary>Removes the import entry for a key (reverting an override back to the core value).</summary>
     public bool RevertToCore(RecordKey key)
     {

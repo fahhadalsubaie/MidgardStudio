@@ -119,7 +119,9 @@ public sealed partial class DbListViewModel : ObservableObject
         _all.Clear();
         foreach (var rec in _table.Effective())
         {
-            if (!byKey.TryGetValue(rec.Key, out var row))
+            if (byKey.TryGetValue(rec.Key, out var row))
+                row.Refresh(); // overlay changed (undo / redo / restore / delete) — re-read the origin pill + cached text
+            else
                 row = new RecordRowViewModel(_table, rec.Key, _iconResolver);
             _all.Add(row);
         }

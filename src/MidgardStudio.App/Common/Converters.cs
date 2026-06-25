@@ -27,7 +27,7 @@ public sealed class OriginToLabelConverter : IValueConverter
     {
         RecordOrigin.Overridden => "OVERRIDE",
         RecordOrigin.NewCustom => "CUSTOM",
-        _ => "CORE",
+        _ => "BASE",
     };
 
     public object ConvertBack(object value, Type targetType, object? parameter, CultureInfo culture) =>

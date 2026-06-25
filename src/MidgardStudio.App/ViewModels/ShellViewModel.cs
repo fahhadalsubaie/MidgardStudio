@@ -39,6 +39,7 @@ public partial class ShellViewModel : ObservableObject
     private readonly System.Windows.Threading.DispatcherTimer _intervalSaveTimer = new();
     private readonly System.Windows.Threading.DispatcherTimer _editSaveTimer = new();
     private ClientItemsViewModel? _clientItemsVm;
+    private ComboEditorViewModel? _comboVm;
     private BackupManagerViewModel? _backupVm;
     private ForgeViewModel? _forgeVm;
     private SettingsViewModel? _settingsVm;
@@ -60,6 +61,10 @@ public partial class ShellViewModel : ObservableObject
     /// surfaced so the top bar can host its record actions (YAML / Port / Create override).</summary>
     [ObservableProperty]
     private DbWorkspaceViewModel? _activeWorkspace;
+
+    /// <summary>The active Item Combos editor (null elsewhere) — lets the top bar host its New/Override actions.</summary>
+    [ObservableProperty]
+    private ComboEditorViewModel? _activeCombo;
 
     [ObservableProperty]
     private bool _isModified;
@@ -132,7 +137,6 @@ public partial class ShellViewModel : ObservableObject
 
         RefreshProfiles();
         ApplySaveMode();
-        Common.ScrollSoundPlayer.Enabled = _appSettings.Settings.ScrollSound;
     }
 
     /// <summary>Rebuilds the Switch-profile submenu from disk and flags the active profile.</summary>
@@ -151,6 +155,7 @@ public partial class ShellViewModel : ObservableObject
         IsModified = _session.Commands.IsModified;
         UndoCommand.NotifyCanExecuteChanged();
         RedoCommand.NotifyCanExecuteChanged();
+        SaveCommand.NotifyCanExecuteChanged(); // grey the Save button out when there's nothing to write
 
         // Auto-save-on-edit: debounce so a burst of edits results in a single write.
         if (_appSettings.Settings.SaveMode == SaveMode.OnEdit && IsModified)
@@ -225,6 +230,7 @@ public partial class ShellViewModel : ObservableObject
     {
         var section = SelectedSection;
         ActiveWorkspace = null; // cleared for non-DB screens; set below when a workspace is shown
+        ActiveCombo = null;     // set below only on the Item Combos screen
 
         if (section?.Key == "grf")
         {
@@ -244,6 +250,15 @@ public partial class ShellViewModel : ObservableObject
             _clientItemsVm ??= new ClientItemsViewModel(_session, _clientItems, _images, _sprite, _schemas.Get("item_db")!);
             CurrentContent = _clientItemsVm;
             _ = _clientItemsVm.EnsureLoadedAsync();
+            return;
+        }
+
+        if (section?.Key == "combos")
+        {
+            _comboVm ??= new ComboEditorViewModel(_session, _schemas.Get("item_combos")!, _drops);
+            ActiveCombo = _comboVm;
+            CurrentContent = _comboVm;
+            _ = _comboVm.EnsureLoadedAsync();
             return;
         }
 
@@ -395,26 +410,34 @@ public partial class ShellViewModel : ObservableObject
         foreach (var workspace in _workspaces.Values) workspace.Dispose();
         _workspaces.Clear();
         _clientItemsVm = null; // rebuilt against the new mode/profile on next visit
+        _comboVm?.Dispose();
+        _comboVm = null;
         _forgeVm = null;
         _mapCacheVm = null;
     }
 
-    [RelayCommand]
-    private void Save() => DoSave(createBackup: true);
+    [RelayCommand(CanExecute = nameof(CanSave))]
+    private void Save() => DoSave(createBackup: true, showSummary: true);
 
     /// <summary>True when there are server or client edits not yet written to disk.</summary>
     public bool HasUnsavedChanges => _session.Commands.IsModified || _clientItems.IsDirty;
 
+    /// <summary>Gate for the Save command — disabled (greyed out) when nothing has changed.</summary>
+    private bool CanSave() => HasUnsavedChanges;
+
     /// <summary>Writes pending changes. Returns false if the save failed (data is kept in the editor).
-    /// Manual saves take a dated backup; auto-saves don't (to avoid spam).</summary>
-    private bool DoSave(bool createBackup)
+    /// Manual saves take a dated backup; auto-saves don't (to avoid spam). When <paramref name="showSummary"/>
+    /// is set, a centered dialog reports what was written.</summary>
+    private bool DoSave(bool createBackup, bool showSummary = false)
     {
-        // Capture what's about to change so the auto-backup can label itself, then write only those.
-        var dirtyIds = _session.DirtyDatabaseIds();
+        // Capture what's about to change (id + import path) so the backup/summary can label themselves;
+        // the dirty flags are cleared by SaveAll, so this must run first.
+        var saveTargets = _session.DirtySaveTargets();
         bool clientDirty = _clientItems.IsDirty;
-        if (dirtyIds.Count == 0 && !clientDirty)
+        if (saveTargets.Count == 0 && !clientDirty)
         {
             IsModified = _session.Commands.IsModified;
+            SaveCommand.NotifyCanExecuteChanged();
             return true;
         }
 
@@ -428,6 +451,7 @@ public partial class ShellViewModel : ObservableObject
             Serilog.Log.Error(ex, "Save failed");
             // Never report a failed/partial save as clean: keep whatever is still dirty so the user can retry.
             IsModified = _session.Commands.IsModified || _clientItems.IsDirty;
+            SaveCommand.NotifyCanExecuteChanged();
             Views.ConfirmDialog.Alert("Save failed",
                 "Your changes were NOT fully saved and are still here in the editor:\n\n" + ex.Message +
                 "\n\nClose anything that might be using these files (for example a running server), then save again.");
@@ -436,23 +460,39 @@ public partial class ShellViewModel : ObservableObject
 
         // OR client dirtiness in so a half-failed save can never be shown as a clean state.
         IsModified = _session.Commands.IsModified || _clientItems.IsDirty;
+        SaveCommand.NotifyCanExecuteChanged();
+
+        // The list of files this save wrote, with friendly labels — reused for the backup note + summary.
+        var written = saveTargets
+            .Select(t => new Views.SaveSummaryDialog.SavedFile(_schemas.Get(t.Id)?.DisplayName ?? t.Id, t.ImportFilePath))
+            .ToList();
+        if (clientDirty) written.Add(new("Client items", _clientItems.SaveTargetPath));
 
         // Snapshot the freshly-saved state into a dated, self-describing backup (manual saves only).
         if (createBackup)
         {
-            var names = dirtyIds.Select(id => _schemas.Get(id)?.DisplayName ?? id).ToList();
-            if (clientDirty) names.Add("Client items");
+            var names = written.Select(w => w.Label).ToList();
             _backups.CreateBackup("Save · " + string.Join(", ", names),
                 $"Automatic backup taken after saving: {string.Join(", ", names)}.");
             _backupVm?.RefreshCommand.Execute(null);
         }
 
         RefreshProfiles();       // keep the active-profile flag fresh
+
+        if (showSummary)
+        {
+            string summary = written.Count == 1
+                ? "1 file was written to disk."
+                : $"{written.Count} files were written to disk.";
+            Views.SaveSummaryDialog.Show(summary, written);
+        }
+
         return true;
     }
 
-    /// <summary>Saves for an exiting window. Returns true if it's safe to close (saved or nothing pending).</summary>
-    public bool SaveForExit() => DoSave(createBackup: true);
+    /// <summary>Saves for an exiting window. Returns true if it's safe to close (saved or nothing pending).
+    /// No summary dialog here — the window is on its way out.</summary>
+    public bool SaveForExit() => DoSave(createBackup: true, showSummary: false);
 
     [RelayCommand]
     private void OpenSettings()
@@ -476,10 +516,24 @@ public partial class ShellViewModel : ObservableObject
         "Save" => SaveCommand,
         "Undo" => UndoCommand,
         "Redo" => RedoCommand,
+        "NewEntry" => NewEntryCommand,
+        "Forge" => OpenForgeCommand,
+        "FindInList" => FocusListSearchCommand,
+        "FindEverywhere" => FindEverywhereCommand,
         "QuickOpen" => OpenPaletteCommand,
+        "Reload" => ReloadDataCommand,
         "Configuration" => OpenWizardCommand,
         _ => null,
     };
+
+    /// <summary>Raised when the user presses the "find in list" shortcut so the window can focus the search box.</summary>
+    public event Action? FocusSearchRequested;
+
+    [RelayCommand]
+    private void NewEntry() => ActiveWorkspace?.AddCustomCommand.Execute(null);
+
+    [RelayCommand]
+    private void FocusListSearch() => FocusSearchRequested?.Invoke();
 
     /// <summary>Builds the window's key bindings from the configured (or default) shortcut gestures.</summary>
     public IEnumerable<KeyBinding> BuildInputBindings()
@@ -538,6 +592,35 @@ public partial class ShellViewModel : ObservableObject
 
     [RelayCommand]
     private void ClosePalette() => IsPaletteOpen = false;
+
+    /// <summary>Opens the palette as a global search, loading every database so results cover all of them.</summary>
+    [RelayCommand]
+    private void FindEverywhere()
+    {
+        PaletteQuery = string.Empty;
+        PaletteResults.Clear();
+        IsPaletteOpen = true;
+        _ = EnsureAllDatabasesLoadedAsync();
+    }
+
+    /// <summary>Creates + loads every database workspace so the palette can search all of them; results
+    /// stream in as each finishes loading, and everything is cached for instant re-use afterwards.</summary>
+    private async Task EnsureAllDatabasesLoadedAsync()
+    {
+        foreach (var section in Sections.ToList())
+        {
+            if (section.SchemaId is not { } id || _schemas.Get(id) is not { } schema) continue;
+            if (!_workspaces.TryGetValue(id, out var workspace))
+            {
+                workspace = new DbWorkspaceViewModel(_session, schema, _references, _clientItems, _images,
+                    _mobSprite, _drops, NavigateTo);
+                _workspaces[id] = workspace;
+            }
+            await workspace.EnsureLoadedAsync();
+            if (IsPaletteOpen && !string.IsNullOrWhiteSpace(PaletteQuery))
+                OnPaletteQueryChanged(PaletteQuery); // re-search now that this DB is available
+        }
+    }
 
     partial void OnPaletteQueryChanged(string value)
     {

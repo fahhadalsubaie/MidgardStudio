@@ -78,13 +78,19 @@ public sealed partial class RecordEditorViewModel : ObservableObject
     [RelayCommand]
     private void CreateOverride()
     {
-        if (_table.OriginOf(_key) == RecordOrigin.Base)
-        {
-            _table.BeginOverride(_key);
-            Build();
-            RecordChanged?.Invoke();
-            OverrideCreated?.Invoke();
-        }
+        if (_table.OriginOf(_key) != RecordOrigin.Base) return;
+
+        // Route through the undo stack so it's undoable AND marks the session modified (changes indicator
+        // + Save light up). The clone is captured so redo re-adds the same instance — keeping any later
+        // field-edit commands (which reference that record) valid across undo/redo.
+        DbRecord? clone = null;
+        _stack.Execute(new ListMutateCommand("Create override",
+            () => { if (clone is null) clone = _table.BeginOverride(_key); else _table.AddCustom(clone); },
+            () => _table.RevertToCore(_key)));
+
+        Build();
+        RecordChanged?.Invoke();
+        OverrideCreated?.Invoke();
     }
 
     private void Build()

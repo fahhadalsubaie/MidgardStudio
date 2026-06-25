@@ -49,6 +49,9 @@ public sealed class ClientItemService
     /// <summary>The file edits are written to (custom file, else the unified base file).</summary>
     private string WriteTargetPath => UnifiedMode ? BasePath : CustomPath;
 
+    /// <summary>The file the next <see cref="Save"/> writes the client item text to (for the save summary).</summary>
+    public string SaveTargetPath => WriteTargetPath;
+
     private string BaseText => _baseText ??= File.Exists(BasePath) ? _codec.ReadText(BasePath) : string.Empty;
 
     /// <summary>Lazily-indexed base/official itemInfo (entries parsed on demand — the base file is ~7 MB).</summary>
