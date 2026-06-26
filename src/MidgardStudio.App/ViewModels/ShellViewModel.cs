@@ -388,9 +388,10 @@ public partial class ShellViewModel : ObservableObject
     {
         try
         {
-            OpenInExplorer(Path.GetFullPath(Path.Combine(_session.Paths.ServerDbRoot, "..", "..", "docs")));
+            // Open the project repository (docs + releases) in the default browser.
+            Process.Start(new ProcessStartInfo("https://github.com/fahhadalsubaie/MidgardStudio") { UseShellExecute = true });
         }
-        catch { /* path math can throw on an empty root — ignore */ }
+        catch { /* shell-open failure is non-fatal */ }
     }
 
     private static void OpenInExplorer(string path)
