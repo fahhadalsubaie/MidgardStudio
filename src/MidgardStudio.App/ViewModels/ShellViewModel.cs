@@ -121,7 +121,16 @@ public partial class ShellViewModel : ObservableObject
         _editSaveTimer.Interval = TimeSpan.FromMilliseconds(1500);
         _editSaveTimer.Tick += (_, _) => { _editSaveTimer.Stop(); if (IsModified) DoSave(createBackup: false); };
         _wizard.OpenRequested += cfg => ApplyProfile(cfg);
-        _wizard.CancelRequested += () => ShowWizard = false;
+        _wizard.CloseRequested += () =>
+        {
+            // Closing returns to the workspace already loaded behind the overlay. On a genuine first run
+            // there is no valid workspace to return to, so closing the configuration window exits the app.
+            var profile = _configService.ActiveProfile;
+            if (profile is not null && profile.Paths.AllExist())
+                ShowWizard = false;
+            else
+                Exit();
+        };
         _validation.Navigate = NavigateToIssue;
 
         _session.Commands.Changed += OnCommandsChanged;

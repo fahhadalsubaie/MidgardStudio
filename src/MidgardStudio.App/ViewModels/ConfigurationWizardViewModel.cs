@@ -29,8 +29,9 @@ public sealed partial class ConfigurationWizardViewModel : ObservableObject
     /// <summary>Raised when the user clicks "Open" — carries the profile the shell should apply.</summary>
     public event Action<WorkspaceConfig>? OpenRequested;
 
-    /// <summary>Raised when the user dismisses the wizard without switching profiles.</summary>
-    public event Action? CancelRequested;
+    /// <summary>Raised when the user closes the configuration window. The shell dismisses the overlay if a
+    /// valid workspace is already loaded behind it, or exits the app on a genuine first run.</summary>
+    public event Action? CloseRequested;
 
     /// <summary>Saved profiles, most-recently-opened first.</summary>
     public ObservableCollection<WorkspaceConfig> Profiles { get; } = new();
@@ -45,7 +46,6 @@ public sealed partial class ConfigurationWizardViewModel : ObservableObject
     [ObservableProperty] private string _itemInfoPath = string.Empty;
     [ObservableProperty] private string _itemInfoCustomPath = string.Empty;
     [ObservableProperty] private bool _isRenewal = true;
-    [ObservableProperty] private bool _canCancel;
     [ObservableProperty] private string _statusMessage = string.Empty;
 
     /// <summary>Reloads the profile list and the editable fields (active profile, or repo defaults).</summary>
@@ -53,7 +53,6 @@ public sealed partial class ConfigurationWizardViewModel : ObservableObject
     {
         RefreshProfiles();
         var active = _config.ActiveProfile;
-        CanCancel = active is not null && active.Paths.AllExist();
         LoadConfig(active ?? WorkspaceConfigService.CreateDefault());
         StatusMessage = active is null
             ? "First run — confirm these paths (defaults shown), choose a system, then Open."
@@ -61,7 +60,7 @@ public sealed partial class ConfigurationWizardViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void Cancel() => CancelRequested?.Invoke();
+    private void Close() => CloseRequested?.Invoke();
 
     private void RefreshProfiles()
     {

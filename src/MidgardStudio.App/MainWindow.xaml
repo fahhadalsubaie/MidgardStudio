@@ -393,13 +393,9 @@
              Fully opaque so it stays readable over the Mica backdrop / desktop. -->
         <Border Grid.Row="1" Grid.RowSpan="2" Background="#FF14141A"
                 Visibility="{Binding ShowWizard, Converter={StaticResource BoolToVis}}">
-            <Border Margin="20" CornerRadius="8" Background="#FF1E1E26"
-                    BorderBrush="#22FFFFFF" BorderThickness="1" Padding="20">
-                <DockPanel>
-                    <TextBlock DockPanel.Dock="Top" Text="Midgard Studio  ·  Configuration" Style="{StaticResource TitleScreen}"
-                               Margin="0,0,0,14" />
-                    <ContentControl Content="{Binding Wizard}" />
-                </DockPanel>
+            <Border Margin="20" CornerRadius="10" Background="#FF1A1A22"
+                    BorderBrush="#22FFFFFF" BorderThickness="1">
+                <ContentControl Content="{Binding Wizard}" />
             </Border>
         </Border>
 
