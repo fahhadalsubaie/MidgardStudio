@@ -161,19 +161,19 @@
                             <TextBlock Opacity="0.6" FontSize="12" TextWrapping="Wrap" Margin="0,0,0,12"
                                        Text="Point the app at this server's files. The GRF archives below are what the GRF Browser reads — you don't set them again there." />
 
-                            <TextBlock Text="Server DB folder  (…\server-db\db)" Style="{StaticResource FieldCaption}" />
+                            <TextBlock Text="Server DB Folder  ( ../rAthena/db )" Style="{StaticResource FieldCaption}" />
                             <DockPanel>
                                 <ui:Button DockPanel.Dock="Right" Content="Browse…" Command="{Binding BrowseServerDbCommand}" Margin="8,0,0,0" />
                                 <ui:TextBox Text="{Binding ServerDbRoot, UpdateSourceTrigger=PropertyChanged}" />
                             </DockPanel>
 
-                            <TextBlock Text="Client lua-files folder" Style="{StaticResource FieldCaption}" Margin="0,12,0,3" />
+                            <TextBlock Text="Client Lua files  ( data/luafiles514/lua files )" Style="{StaticResource FieldCaption}" Margin="0,12,0,3" />
                             <DockPanel>
                                 <ui:Button DockPanel.Dock="Right" Content="Browse…" Command="{Binding BrowseLuaFilesCommand}" Margin="8,0,0,0" />
                                 <ui:TextBox Text="{Binding LuaFilesRoot, UpdateSourceTrigger=PropertyChanged}" />
                             </DockPanel>
 
-                            <TextBlock Text="Base item info  (itemInfo.lua — core/official, read for text &amp; icons)"
+                            <TextBlock Text="Base iteminfo.lua  ( SystemEN/LuaFiles514/itemInfo.lua )"
                                        Style="{StaticResource FieldCaption}" Margin="0,12,0,3" />
                             <DockPanel>
                                 <ui:Button DockPanel.Dock="Right" Content="Browse…" Command="{Binding BrowseItemInfoCommand}" Margin="8,0,0,0" />
@@ -181,7 +181,7 @@
                                             PlaceholderText="…\System\itemInfo.lua (optional)" />
                             </DockPanel>
 
-                            <TextBlock Text="Custom item info  (itemInfo_C.lua — written for new/overridden items)"
+                            <TextBlock Text="Custom Iteminfo.lua  ( SystemEN/itemInfo_C.lua )"
                                        Style="{StaticResource FieldCaption}" Margin="0,12,0,3" />
                             <DockPanel>
                                 <ui:Button DockPanel.Dock="Right" Content="Browse…" Command="{Binding BrowseItemInfoCustomCommand}" Margin="8,0,0,0" />
@@ -203,25 +203,50 @@
                                     <ui:Button Content="Add data folder…" Command="{Binding AddDataFolderCommand}" />
                                 </StackPanel>
                             </DockPanel>
-                            <Border BorderBrush="#22FFFFFF" BorderThickness="1" CornerRadius="6" MinHeight="56" Padding="4">
-                                <ItemsControl ItemsSource="{Binding GrfPaths}">
-                                    <ItemsControl.ItemTemplate>
+                            <Border BorderBrush="#22FFFFFF" BorderThickness="1" CornerRadius="6" MinHeight="56" Padding="2">
+                                <ListBox x:Name="GrfList" ItemsSource="{Binding GrfPaths}" Background="Transparent" BorderThickness="0"
+                                         AllowDrop="True" AlternationCount="2000"
+                                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                         PreviewMouseLeftButtonDown="GrfList_PreviewMouseLeftButtonDown"
+                                         PreviewMouseMove="GrfList_PreviewMouseMove"
+                                         DragOver="GrfList_DragOver" Drop="GrfList_Drop">
+                                    <ListBox.ItemContainerStyle>
+                                        <Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
+                                            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                            <Setter Property="Padding" Value="4,3" />
+                                            <Setter Property="Margin" Value="0,1" />
+                                        </Style>
+                                    </ListBox.ItemContainerStyle>
+                                    <ListBox.ItemTemplate>
                                         <DataTemplate>
-                                            <DockPanel Margin="2">
-                                                <ui:Button DockPanel.Dock="Right" Appearance="Transparent" ToolTip="Remove" Padding="6"
-                                                           Command="{Binding DataContext.RemoveGrfCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                            <Grid Background="Transparent">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <ui:SymbolIcon Grid.Column="0" Symbol="ReOrderDotsVertical24" FontSize="16" Opacity="0.4"
+                                                               VerticalAlignment="Center" Margin="2,0,8,0" ToolTip="Drag to reorder priority" />
+                                                <Border Grid.Column="1" Background="#338D2DF2" CornerRadius="9" MinWidth="20" Height="18"
+                                                        VerticalAlignment="Center" Margin="0,0,9,0" ToolTip="Layer priority (the bottom entry wins)">
+                                                    <TextBlock Text="{Binding (ItemsControl.AlternationIndex), RelativeSource={RelativeSource AncestorType=ListBoxItem}, Converter={StaticResource PlusOne}}"
+                                                               FontSize="10.5" HorizontalAlignment="Center" VerticalAlignment="Center" Opacity="0.9" Padding="5,0" />
+                                                </Border>
+                                                <TextBlock Grid.Column="2" Text="{Binding}" VerticalAlignment="Center" FontFamily="Consolas" FontSize="11"
+                                                           ToolTip="{Binding}" TextTrimming="CharacterEllipsis" />
+                                                <ui:Button Grid.Column="3" Appearance="Transparent" ToolTip="Remove" Padding="6"
+                                                           Command="{Binding DataContext.RemoveGrfCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
                                                            CommandParameter="{Binding}">
                                                     <ui:Button.Icon><ui:SymbolIcon Symbol="Dismiss24" FontSize="14" /></ui:Button.Icon>
                                                 </ui:Button>
-                                                <TextBlock Text="{Binding}" VerticalAlignment="Center" FontFamily="Consolas" FontSize="11"
-                                                           ToolTip="{Binding}" TextTrimming="CharacterEllipsis" />
-                                            </DockPanel>
+                                            </Grid>
                                         </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
                             </Border>
-                            <TextBlock Opacity="0.5" FontSize="11" Margin="2,6,0,0"
-                                       Text="Layered last-wins (a loose data folder added last overrides the GRFs). Optional — leave empty to skip GRF previews." />
+                            <TextBlock Opacity="0.5" FontSize="11" Margin="2,6,0,0" TextWrapping="Wrap"
+                                       Text="Drag the handle to reorder. Layers load top → bottom — an entry overrides everything above it (the bottom wins). Optional — leave empty to skip GRF previews." />
                         </StackPanel>
                     </ui:Card>
 

@@ -137,6 +137,14 @@ public sealed partial class ConfigurationWizardViewModel : ObservableObject
         if (path is not null) GrfPaths.Remove(path);
     }
 
+    /// <summary>Reorders a GRF/data path (drag-to-reorder). Layering is order-sensitive — the bottom entry wins.</summary>
+    public void MoveGrf(int from, int to)
+    {
+        if (from < 0 || from >= GrfPaths.Count) return;
+        to = Math.Clamp(to, 0, GrfPaths.Count - 1);
+        if (from != to) GrfPaths.Move(from, to);
+    }
+
     [RelayCommand]
     private void SaveProfile()
     {

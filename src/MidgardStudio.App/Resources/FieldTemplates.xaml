@@ -17,6 +17,7 @@
     <common:FileNameConverter x:Key="FileName" />
     <common:CountToVisibilityConverter x:Key="CountToVis" />
     <common:BoolToTextWrappingConverter x:Key="BoolToWrap" />
+    <common:AddOneConverter x:Key="PlusOne" />
 
     <!-- Dark "magic-bento" background for script editors (a subtle purple glow over near-black) so the
          code area is themed instead of a plain white box. Reused by every script editor in the app. -->
