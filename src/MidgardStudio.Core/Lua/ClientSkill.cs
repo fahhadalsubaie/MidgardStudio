@@ -28,8 +28,14 @@ public sealed class ClientSkill
     public string Aegis { get; set; } = string.Empty;     // positional [0] (usually == Constant)
     public string SkillName { get; set; } = string.Empty; // in-game display name
     public int MaxLv { get; set; }
+    // Presence flags: ~18% of official info entries have no MaxLv field, and a few carry an explicit empty
+    // array. The reader can't tell absent from 0/empty, so track presence to re-emit faithfully (otherwise an
+    // edited entry gains a spurious `MaxLv = 0` line — a real change for the client).
+    public bool HasMaxLv { get; set; }
     public List<int> AttackRange { get; set; } = new();
+    public bool HasAttackRange { get; set; }
     public List<int> SpAmount { get; set; } = new();
+    public bool HasSpAmount { get; set; }
     public bool? BSeperateLv { get; set; }
     public List<SkillPrereq> NeedSkillList { get; set; } = new();      // _NeedSkillList
     public string? Type { get; set; }                                  // e.g. "Quest" (preserved)
@@ -55,8 +61,11 @@ public sealed class ClientSkill
         Aegis = Aegis,
         SkillName = SkillName,
         MaxLv = MaxLv,
+        HasMaxLv = HasMaxLv,
         AttackRange = new List<int>(AttackRange),
+        HasAttackRange = HasAttackRange,
         SpAmount = new List<int>(SpAmount),
+        HasSpAmount = HasSpAmount,
         BSeperateLv = BSeperateLv,
         NeedSkillList = NeedSkillList.Select(p => p with { }).ToList(),
         Type = Type,

@@ -40,7 +40,10 @@ public static class ClientSkillValidator
                     { RuleId = "CSKILL.NAME_MISMATCH", Fix = new QuickFix($"Set name to '{skill.Constant}'", () => skill.Aegis = skill.Constant, () => skill.Aegis = oldAegis) });
                 }
 
-                if (skill.MaxLv <= 0)
+                // Only flag an explicit, invalid MaxLv. A skill with NO MaxLv field is valid (the official
+                // client ships ~18% of info entries that way); flagging those would be a false positive AND
+                // would steer the user into an edit that writes a spurious `MaxLv = 0` line.
+                if (skill.HasMaxLv && skill.MaxLv <= 0)
                 {
                     int oldMax = skill.MaxLv;
                     issues.Add(new ValidationIssue(ValidationSeverity.Error, DbId, key, "MaxLv",

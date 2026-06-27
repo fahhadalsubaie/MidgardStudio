@@ -12,13 +12,16 @@ public static class ClientSkillWriter
 {
     public static string FormatInfo(ClientSkill s)
     {
+        // The positional aegis ([0]) is always present and anchors the comma chain; every other field leads
+        // with its own ",\n" so an absent one (e.g. MaxLv on ~18% of entries) leaves no spurious line. For an
+        // entry that DOES have MaxLv this is byte-identical to the previous always-emit layout.
         var sb = new StringBuilder();
         sb.Append($"\t[SKID.{s.Constant}] = {{\n");
-        sb.Append($"\t\t{Quote(s.Aegis)},\n");
-        sb.Append($"\t\tSkillName = {Quote(s.SkillName)},\n");
-        sb.Append($"\t\tMaxLv = {s.MaxLv}");
-        if (s.AttackRange.Count > 0) sb.Append($",\n\t\tAttackRange = {IntArray(s.AttackRange)}");
-        if (s.SpAmount.Count > 0) sb.Append($",\n\t\tSpAmount = {IntArray(s.SpAmount)}");
+        sb.Append($"\t\t{Quote(s.Aegis)}");
+        sb.Append($",\n\t\tSkillName = {Quote(s.SkillName)}");
+        if (s.HasMaxLv) sb.Append($",\n\t\tMaxLv = {s.MaxLv}");
+        if (s.HasAttackRange || s.AttackRange.Count > 0) sb.Append($",\n\t\tAttackRange = {IntArray(s.AttackRange)}");
+        if (s.HasSpAmount || s.SpAmount.Count > 0) sb.Append($",\n\t\tSpAmount = {IntArray(s.SpAmount)}");
         if (s.BSeperateLv.HasValue) sb.Append($",\n\t\tbSeperateLv = {Bool(s.BSeperateLv.Value)}");
         if (s.NeedSkillList.Count > 0) sb.Append($",\n\t\t_NeedSkillList = {Prereqs(s.NeedSkillList, 2)}");
         if (s.Type is not null) sb.Append($",\n\t\tType = {Quote(s.Type)}");

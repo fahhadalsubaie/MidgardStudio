@@ -257,6 +257,7 @@ public sealed class WorkspaceValidator
         if (_clientSkills.Get(constant) is { } s)
         {
             s.MaxLv = maxLv;
+            s.HasMaxLv = true; // a cross-check fix writes an explicit MaxLv, so mark it present
             _clientSkills.NotifyEdited(constant);
         }
     }

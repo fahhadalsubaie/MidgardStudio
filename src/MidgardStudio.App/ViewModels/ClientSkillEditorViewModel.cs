@@ -69,14 +69,14 @@ public sealed partial class ClientSkillEditorViewModel : ObservableObject
         get => _skill.MaxLv;
         set
         {
-            if (!_ready || value < 1 || value == _skill.MaxLv) return;
-            int old = _skill.MaxLv;
+            if (!_ready || value < 1 || (value == _skill.MaxLv && _skill.HasMaxLv)) return;
+            int old = _skill.MaxLv; bool oldHas = _skill.HasMaxLv;
             // One undo step: change MaxLv, resize every per-level strip to match, commit any array that grew/shrank.
             using (_stack.BeginBatch("Client skill: max level"))
             {
                 _stack.Execute(new ListMutateCommand("max level",
-                    () => { _skill.MaxLv = value; _service.NotifyEdited(_skill.Constant); OnPropertyChanged(nameof(MaxLv)); },
-                    () => { _skill.MaxLv = old; _service.NotifyEdited(_skill.Constant); OnPropertyChanged(nameof(MaxLv)); }));
+                    () => { _skill.MaxLv = value; _skill.HasMaxLv = true; _service.NotifyEdited(_skill.Constant); OnPropertyChanged(nameof(MaxLv)); },
+                    () => { _skill.MaxLv = old; _skill.HasMaxLv = oldHas; _service.NotifyEdited(_skill.Constant); OnPropertyChanged(nameof(MaxLv)); }));
                 foreach (var pl in _levelFields)
                 {
                     pl.Field.SetMaxLv(value);

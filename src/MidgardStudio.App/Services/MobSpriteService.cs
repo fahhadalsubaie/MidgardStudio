@@ -12,7 +12,7 @@ namespace MidgardStudio.App.Services;
 public sealed class MobSpriteService
 {
     private readonly WorkspaceSession _session;
-    private LuaFileCodec _codec => _session.ClientCodec; // codepage follows the active profile (rebuilt on profile switch)
+    private LuaFileCodec _codec => _session.ClientCodec; // fixed Windows-1252 (the RO client boundary), independent of the profile Display Encoding
 
     public MobSpriteService(WorkspaceSession session) => _session = session;
 

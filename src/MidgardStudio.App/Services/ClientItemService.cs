@@ -16,7 +16,7 @@ namespace MidgardStudio.App.Services;
 public sealed class ClientItemService
 {
     private readonly WorkspaceSession _session;
-    private LuaFileCodec _codec => _session.ClientCodec; // codepage follows the active profile (rebuilt on profile switch)
+    private LuaFileCodec _codec => _session.ClientCodec; // fixed Windows-1252 (the RO client boundary), independent of the profile Display Encoding
     private readonly ItemInfoReader _reader = new();
     private ItemInfoFile? _file;
     private OfficialItemInfo? _official;

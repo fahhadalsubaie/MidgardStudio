@@ -204,6 +204,52 @@ public class ClientSkillLuaTests
         Assert.Equal(once, twice);
     }
 
+    // Regression (HIGH): ~18% of official info entries have NO MaxLv field. The reader can't tell absent from
+    // 0, so before the presence flag an edited entry gained a spurious `MaxLv = 0` line (a real change for the
+    // client), and the validator flagged all of them as errors — nudging the user into that very edit.
+    [Fact]
+    public void MaxLv_absence_is_preserved_and_not_flagged()
+    {
+        string text =
+            "SKILL_INFO_LIST = {\n" +
+            "\t[SKID.HASLV] = {\n\t\t\"HASLV\",\n\t\tSkillName = \"Has\",\n\t\tMaxLv = 5\n\t},\n" +
+            "\t[SKID.NOLV] = {\n\t\t\"NOLV\",\n\t\tSkillName = \"No\"\n\t}\n" +
+            "}\n";
+        var skills = new Dictionary<string, ClientSkill>();
+        ClientSkillReader.ReadInfo(text, skills);
+
+        Assert.True(skills["HASLV"].HasMaxLv);
+        Assert.Equal(5, skills["HASLV"].MaxLv);
+        Assert.False(skills["NOLV"].HasMaxLv);
+
+        Assert.Contains("MaxLv = 5", ClientSkillWriter.FormatInfo(skills["HASLV"]));
+        Assert.DoesNotContain("MaxLv", ClientSkillWriter.FormatInfo(skills["NOLV"])); // never re-emitted as 0
+
+        var tables = new ClientSkillTables();
+        tables.Skid["NOLV"] = 1;
+        skills["NOLV"].Id = 1;
+        tables.Skills["NOLV"] = skills["NOLV"];
+        Assert.DoesNotContain(ClientSkillValidator.Validate(tables), i => i.RuleId == "CSKILL.MAXLV_INVALID");
+    }
+
+    // Regression (HIGH): the shipped skillid.lub ends its last entry with NO trailing comma. Appending a new
+    // SKID constant must insert a separator, else two fields abut with only whitespace — a Lua syntax error
+    // the strict in-client interpreter rejects (the app's own reader is separator-tolerant and hides it).
+    [Fact]
+    public void AppendConstant_adds_separator_when_last_entry_lacks_trailing_comma()
+    {
+        string noComma = "SKID = {\n\tA = 1,\n\tB = 2\n}\n";   // B has no trailing comma (like the real file)
+        string updated = AccessoryTables.AppendConstant(noComma, "SKID", "C", 3);
+        Assert.Contains("B = 2,", updated);           // separator inserted
+        Assert.DoesNotContain("B = 2,,", updated);    // not doubled
+        var map = ClientSkillReader.ReadSkid(updated);
+        Assert.Equal(3, map.Count);
+        Assert.Equal(3, map["C"]);
+
+        string withComma = "SKID = {\n\tA = 1,\n\tB = 2,\n}\n";
+        Assert.DoesNotContain("B = 2,,", AccessoryTables.AppendConstant(withComma, "SKID", "C", 3));
+    }
+
     [Fact]
     public void Validator_flags_internal_inconsistencies()
     {
@@ -211,7 +257,7 @@ public class ClientSkillLuaTests
         tables.Skid["GOOD"] = 1; // GOOD defined; BADKEY is not
         tables.Skills["GOOD"] = new ClientSkill
         {
-            Constant = "GOOD", Id = 1, HasInfo = true, Aegis = "WRONG_NAME", MaxLv = 0,
+            Constant = "GOOD", Id = 1, HasInfo = true, Aegis = "WRONG_NAME", MaxLv = 0, HasMaxLv = true,
             SpAmount = new List<int> { 1, 2 }, // length 2 < MaxLv would need MaxLv>2; MaxLv=0 so MAXLV rule fires
             NeedSkillList = new List<SkillPrereq> { new("UNKNOWN_PREREQ", 1) },
         };
@@ -265,5 +311,31 @@ public class ClientSkillLuaTests
         ClientSkillReader.ReadInfo(spliced, reparsed);
         Assert.Equal(tables.Skills.Count(kv => kv.Value.HasInfo), reparsed.Count); // no entries lost
         Assert.Equal("Bash!", reparsed["SM_BASH"].SkillName);
+    }
+
+    /// <summary>The high-leverage guard the audit asked for: over EVERY real info entry, the writer must emit
+    /// a MaxLv line iff the source had one (no spurious `MaxLv = 0`), and formatting must be stable under a
+    /// re-parse (catches any field/presence drift on edit-and-save).</summary>
+    [Fact]
+    public void Real_skillinfoz_preserves_field_presence_for_every_entry()
+    {
+        if (!Directory.Exists(SkillDir)) return;
+        var codec = new LuaFileCodec(1252);
+        string infoText = codec.ReadText(Path.Combine(SkillDir, "skillinfolist.lub"));
+        var skills = new Dictionary<string, ClientSkill>();
+        ClientSkillReader.ReadInfo(infoText, skills);
+
+        Assert.True(skills.Count > 500);
+        Assert.True(skills.Values.Count(s => !s.HasMaxLv) > 100); // the real file has ~190 MaxLv-less entries
+
+        foreach (var s in skills.Values)
+        {
+            string once = ClientSkillWriter.FormatInfo(s);
+            Assert.Equal(s.HasMaxLv, once.Contains("MaxLv =")); // emit MaxLv iff present in source
+
+            var round = new Dictionary<string, ClientSkill>();
+            ClientSkillReader.ReadInfo("SKILL_INFO_LIST = {\n" + once + "}\n", round);
+            Assert.Equal(once, ClientSkillWriter.FormatInfo(round[s.Constant])); // stable under re-parse
+        }
     }
 }

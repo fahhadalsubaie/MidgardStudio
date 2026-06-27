@@ -53,8 +53,16 @@ public static class AccessoryTables
         int close = LuaScan.FindMatchingBrace(text, open);
         if (close < 0) return text;
 
+        // If the last existing entry has no trailing separator, add one — otherwise the new field abuts the
+        // previous value with only whitespace between them, which is a Lua syntax error the real client rejects
+        // (e.g. skillid.lub's last entry `AT_NATURE_HARMONY = 6607` has no trailing comma). The app's own reader
+        // is separator-tolerant, so this only surfaces in-client. Mirrors ExprKeyTableSplicer's insert logic.
+        int p = close - 1;
+        while (p > open && char.IsWhiteSpace(text[p])) p--;
+        string sep = (p <= open || text[p] == '{' || text[p] == ',' || text[p] == ';') ? string.Empty : ",";
+
         // Insert the line on its own line just before the closing brace.
         string nl = text.Contains("\r\n") ? "\r\n" : "\n";
-        return text[..close] + line + nl + text[close..];
+        return text[..(p + 1)] + sep + text[(p + 1)..close] + line + nl + text[close..];
     }
 }

@@ -40,8 +40,11 @@ public static class ClientSkillReader
             s.Aegis = t.Array.Count > 0 ? t.Array[0] as string ?? string.Empty : string.Empty;
             s.SkillName = t.GetString("SkillName") ?? string.Empty;
             s.MaxLv = t.GetInt("MaxLv");
+            s.HasMaxLv = t.NameKeys.ContainsKey("MaxLv");
             s.AttackRange = ReadIntArray(t.GetTable("AttackRange"));
+            s.HasAttackRange = t.NameKeys.ContainsKey("AttackRange");
             s.SpAmount = ReadIntArray(t.GetTable("SpAmount"));
+            s.HasSpAmount = t.NameKeys.ContainsKey("SpAmount");
             if (t.NameKeys.ContainsKey("bSeperateLv")) s.BSeperateLv = t.GetBool("bSeperateLv");
             s.NeedSkillList = ReadPrereqs(t.GetTable("_NeedSkillList"));
             s.Type = t.GetString("Type");

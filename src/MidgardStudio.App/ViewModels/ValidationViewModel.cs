@@ -67,25 +67,35 @@ public sealed partial class ValidationViewModel : ObservableObject
     [ObservableProperty]
     private int _infoCount;
 
+    private bool _runQueued;
+
     [RelayCommand]
     private async Task Run()
     {
-        if (IsRunning) return;
+        // Coalesce: if a (re-)validation is requested while one is already running, run once more after it
+        // finishes instead of dropping it — otherwise an undo that lands mid-scan would leave the panel showing
+        // stale, pre-undo results until the next manual run.
+        if (IsRunning) { _runQueued = true; return; }
         IsRunning = true;
-        Summary = "Validating…";
         try
         {
-            var scope = FullScan ? ValidationScope.FullScan : ValidationScope.CustomOnly;
-            var report = await Task.Run(() => _validator.Validate(scope));
-            _all = report.Issues
-                .OrderByDescending(i => i.Severity)
-                .ThenBy(i => i.DbId, StringComparer.Ordinal)
-                .ToList();
-            ErrorCount = report.ErrorCount;
-            WarningCount = report.WarningCount;
-            InfoCount = report.InfoCount;
-            ApplyFilter();
-            _hasRun = true;
+            do
+            {
+                _runQueued = false;
+                Summary = "Validating…";
+                var scope = FullScan ? ValidationScope.FullScan : ValidationScope.CustomOnly;
+                var report = await Task.Run(() => _validator.Validate(scope));
+                _all = report.Issues
+                    .OrderByDescending(i => i.Severity)
+                    .ThenBy(i => i.DbId, StringComparer.Ordinal)
+                    .ToList();
+                ErrorCount = report.ErrorCount;
+                WarningCount = report.WarningCount;
+                InfoCount = report.InfoCount;
+                ApplyFilter();
+                _hasRun = true;
+            }
+            while (_runQueued); // a refresh arrived while validating — re-scan against the latest model
         }
         finally
         {

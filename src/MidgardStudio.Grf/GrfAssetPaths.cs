@@ -1,5 +1,4 @@
 using System.Text;
-using Utilities.Services;
 
 namespace MidgardStudio.Grf;
 
@@ -10,8 +9,13 @@ namespace MidgardStudio.Grf;
 /// </summary>
 public static class GrfAssetPaths
 {
-    private static string Ansi(string korean) =>
-        EncodingService.Ansi.GetString(Encoding.GetEncoding(949).GetBytes(korean));
+    // Decode against 1252 explicitly (the client encoding the GRF reader is pinned to), NOT the OS ANSI
+    // codepage — on a non-1252-locale host (e.g. Korean Windows, ACP=949) EncodingService.Ansi would round-trip
+    // the bytes back to real Korean and the built path would no longer match the 1252-decoded GRF entry.
+    private static readonly Encoding Cp1252 = Encoding.GetEncoding(1252);
+    private static readonly Encoding Cp949 = Encoding.GetEncoding(949);
+
+    private static string Ansi(string korean) => Cp1252.GetString(Cp949.GetBytes(korean));
 
     private static readonly string Ui = Ansi("유저인터페이스");      // user interface
     private static readonly string ItemFolder = Ansi("아이템");        // item
