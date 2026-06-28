@@ -5,6 +5,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using GRF.FileFormats.ActFormat;
 using GRF.FileFormats.SprFormat;
+using MidgardStudio.Core.Sprites;
 
 namespace MidgardStudio.App.Common;
 
@@ -56,27 +57,17 @@ public static class SpriteRenderer
         var spr = act.Sprite!;
         var action = act[0];
 
-        // Bounds across every layer of every frame in the action, centred on the .act origin.
-        double minX = 0, minY = 0, maxX = 0, maxY = 0;
-        bool any = false;
+        // Pure geometry (bounds / clamp / placement / interval) lives in Core.Sprites.SpriteLayout; this
+        // method only extracts the boxes and renders the returned placements to WPF.
+        var boxes = new List<SpriteBox>();
         foreach (var frame in action.Frames)
             foreach (var layer in frame.Layers)
             {
                 var gi = SafeImage(layer, spr);
-                if (gi is null) continue;
-                double w = gi.Width, h = gi.Height;
-                double l = layer.OffsetX - w / 2.0, t = layer.OffsetY - h / 2.0;
-                double r = layer.OffsetX + w / 2.0, b = layer.OffsetY + h / 2.0;
-                if (!any) { minX = l; minY = t; maxX = r; maxY = b; any = true; }
-                else { minX = Math.Min(minX, l); minY = Math.Min(minY, t); maxX = Math.Max(maxX, r); maxY = Math.Max(maxY, b); }
+                if (gi is not null) boxes.Add(new SpriteBox(layer.OffsetX, layer.OffsetY, gi.Width, gi.Height));
             }
 
-        if (!any) return null;
-
-        const int pad = 2;
-        int cw = Math.Clamp((int)Math.Ceiling(maxX - minX) + pad * 2, 1, 1024);
-        int ch = Math.Clamp((int)Math.Ceiling(maxY - minY) + pad * 2, 1, 1024);
-        double cx = -minX + pad, cy = -minY + pad;
+        if (SpriteLayout.Bounds(boxes) is not { } canvas) return null;
 
         var frames = new List<ImageSource>(action.NumberOfFrames);
         foreach (var frame in action.Frames)
@@ -88,25 +79,21 @@ public static class SpriteRenderer
                 {
                     var gi = SafeImage(layer, spr);
                     if (gi is null || GrfImaging.ToImageSource(gi) is not { } src) continue;
-                    double w = gi.Width, h = gi.Height;
-                    double x = cx + layer.OffsetX - w / 2.0;
-                    double y = cy + layer.OffsetY - h / 2.0;
-                    bool mirror = layer.Mirror;
-                    if (mirror) dc.PushTransform(new ScaleTransform(-1, 1, cx + layer.OffsetX, cy + layer.OffsetY));
-                    dc.DrawImage(src, new Rect(x, y, w, h));
-                    if (mirror) dc.Pop();
+                    var p = SpriteLayout.Place(new SpriteBox(layer.OffsetX, layer.OffsetY, gi.Width, gi.Height), canvas);
+                    if (layer.Mirror) dc.PushTransform(new ScaleTransform(-1, 1, p.MirrorCenterX, p.MirrorCenterY));
+                    dc.DrawImage(src, new Rect(p.X, p.Y, p.Width, p.Height));
+                    if (layer.Mirror) dc.Pop();
                 }
             }
 
-            var rtb = new RenderTargetBitmap(cw, ch, 96, 96, PixelFormats.Pbgra32);
+            var rtb = new RenderTargetBitmap(canvas.Width, canvas.Height, 96, 96, PixelFormats.Pbgra32);
             rtb.Render(dv);
             rtb.Freeze();
             frames.Add(rtb);
         }
 
         if (frames.Count == 0) return null;
-        int interval = Math.Clamp((int)(action.AnimationSpeed * 25f), 40, 1000);
-        return new SpriteAnimation(frames, frames.Count > 1 ? interval : 0);
+        return new SpriteAnimation(frames, SpriteLayout.IntervalMs(action.AnimationSpeed, frames.Count));
     }
 
     private static GRF.Image.GrfImage? SafeImage(Layer layer, Spr spr)
