@@ -44,7 +44,9 @@ public sealed class AddRecordCommand : IEditCommand
 
     public void Do() => _table.AddCustom(_record);
 
-    public void Undo() => _table.RevertToCore(_record.Key);
+    // Remove the exact instance we added, not whatever currently sits under its key — the record's id (and
+    // thus its key) may have changed since the add, which a key-based RevertToCore would miss.
+    public void Undo() => _table.RemoveImportRaw(_record);
 }
 
 /// <summary>A generic reversible mutation defined by two delegates (used for list add/remove/reorder).</summary>
