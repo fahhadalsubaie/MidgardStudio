@@ -24,6 +24,12 @@ public class SaveGateTests
     }
 
     [Fact]
+    public void Dirty_cash_shop_pulls_in_item_cash()
+    {
+        Assert.Contains("item_cash", SaveGate.TargetsToValidate(new[] { "mob_db" }, false, false, cashShopDirty: true));
+    }
+
+    [Fact]
     public void Item_db_is_not_duplicated_when_already_a_target()
     {
         var ids = SaveGate.TargetsToValidate(new[] { "item_db" }, clientItemsDirty: true, clientSkillsDirty: false);

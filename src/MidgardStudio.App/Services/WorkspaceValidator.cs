@@ -23,9 +23,11 @@ public sealed class WorkspaceValidator
     private readonly MobSpriteService _mobSprite;
     private readonly SpriteLinkService _sprite;
     private readonly GrfService _grf;
+    private readonly CashShopService _cashShop;
 
     public WorkspaceValidator(WorkspaceSession session, SchemaRegistry schemas, ReferenceIndex references,
-        ClientItemService client, ClientSkillService clientSkills, MobSpriteService mobSprite, SpriteLinkService sprite, GrfService grf)
+        ClientItemService client, ClientSkillService clientSkills, MobSpriteService mobSprite, SpriteLinkService sprite,
+        GrfService grf, CashShopService cashShop)
     {
         _session = session;
         _schemas = schemas;
@@ -35,6 +37,7 @@ public sealed class WorkspaceValidator
         _mobSprite = mobSprite;
         _sprite = sprite;
         _grf = grf;
+        _cashShop = cashShop;
     }
 
     /// <summary>A validation context bound to the current mode and the cached reference index. Reused by
@@ -63,8 +66,17 @@ public sealed class WorkspaceValidator
         ValidateItemClientFiles(issues, scope);
         ValidateMobClientFiles(issues, scope);
         ValidateClientSkills(issues, scope);
+        ValidateCashShop(issues);
 
         return new ValidationReport(issues);
+    }
+
+    /// <summary>Cash-shop findings (unknown item / dup-in-tab / price 0). Bespoke db (no schema), so it runs
+    /// outside the schema loop; cheap when the shop is empty.</summary>
+    private void ValidateCashShop(List<ValidationIssue> issues)
+    {
+        try { issues.AddRange(_cashShop.Validate()); }
+        catch { /* item_cash unreadable in this workspace — skip, not fatal */ }
     }
 
     /// <summary>Validates only the given databases (plus their client files). Used by the save gate, which
@@ -89,6 +101,7 @@ public sealed class WorkspaceValidator
         if (wanted.Contains("item_db")) ValidateItemClientFiles(issues, scope);
         if (wanted.Contains("mob_db")) ValidateMobClientFiles(issues, scope);
         if (wanted.Contains("skill_db")) ValidateClientSkills(issues, scope);
+        if (wanted.Contains(MidgardStudio.Core.CashShop.CashShopValidator.DbId)) ValidateCashShop(issues);
 
         return new ValidationReport(issues);
     }

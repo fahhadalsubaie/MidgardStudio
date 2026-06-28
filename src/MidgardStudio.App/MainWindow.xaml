@@ -72,6 +72,11 @@
             <views:MapCacheEditorView />
         </DataTemplate>
 
+        <!-- Cash shop manager -->
+        <DataTemplate DataType="{x:Type vm:CashShopManagerViewModel}">
+            <views:CashShopManagerView />
+        </DataTemplate>
+
         <!-- Placeholder for sections whose editor lands in a later phase -->
         <DataTemplate DataType="{x:Type vm:DbSectionViewModel}">
             <ui:Card>
@@ -209,6 +214,9 @@
                         </MenuItem>
                         <MenuItem Header="_Map Cache Editor" Command="{Binding OpenMapCacheEditorCommand}">
                             <MenuItem.Icon><ui:SymbolIcon Symbol="Map24" /></MenuItem.Icon>
+                        </MenuItem>
+                        <MenuItem Header="_Cash Shop Manager" Command="{Binding OpenCashShopManagerCommand}">
+                            <MenuItem.Icon><ui:SymbolIcon Symbol="Cart24" /></MenuItem.Icon>
                         </MenuItem>
                         <Separator />
                         <MenuItem Header="_Backup Manager" Command="{Binding OpenBackupManagerCommand}">
@@ -407,6 +415,41 @@
                             </StackPanel>
                         </DataTemplate>
                     </ListBox.ItemTemplate>
+                    <!-- Collapsible category groups (Server Databases / Client / Tools). Collapse state persists
+                         for the session (the group containers aren't regenerated on selection). -->
+                    <ListBox.GroupStyle>
+                        <GroupStyle>
+                            <GroupStyle.ContainerStyle>
+                                <Style TargetType="{x:Type GroupItem}">
+                                    <Setter Property="Margin" Value="0,2,0,4" />
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="{x:Type GroupItem}">
+                                                <Expander IsExpanded="True" Background="Transparent" BorderThickness="0" Padding="0">
+                                                    <Expander.Header>
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="*" />
+                                                                <ColumnDefinition Width="Auto" />
+                                                            </Grid.ColumnDefinitions>
+                                                            <TextBlock Grid.Column="0" Text="{Binding Name}"
+                                                                       FontSize="11" FontWeight="SemiBold" Opacity="0.55"
+                                                                       VerticalAlignment="Center"
+                                                                       TextOptions.TextFormattingMode="Display" />
+                                                            <TextBlock Grid.Column="1" Text="{Binding ItemCount}"
+                                                                       FontSize="11" Opacity="0.35" Margin="6,0,4,0"
+                                                                       VerticalAlignment="Center" />
+                                                        </Grid>
+                                                    </Expander.Header>
+                                                    <ItemsPresenter Margin="0,2,0,2" />
+                                                </Expander>
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                </Style>
+                            </GroupStyle.ContainerStyle>
+                        </GroupStyle>
+                    </ListBox.GroupStyle>
                 </ListBox>
             </Border>
 

@@ -8,7 +8,8 @@ namespace MidgardStudio.App.ViewModels;
 /// </summary>
 public sealed class DbSectionViewModel
 {
-    public DbSectionViewModel(string key, string title, SymbolRegular icon, string description, string filePath, string? schemaId = null)
+    public DbSectionViewModel(string key, string title, SymbolRegular icon, string description, string filePath,
+        string? schemaId = null, string category = "Server Databases")
     {
         Key = key;
         Title = title;
@@ -16,12 +17,17 @@ public sealed class DbSectionViewModel
         Description = description;
         FilePath = filePath;
         SchemaId = schemaId;
+        Category = category;
     }
 
     public string Key { get; }
     public string Title { get; }
     public SymbolRegular Icon { get; }
     public string Description { get; }
+
+    /// <summary>The nav group this section belongs to (Server Databases / Client / Tools). Drives the
+    /// collapsible category grouping in the side nav so it scales as editors are added.</summary>
+    public string Category { get; }
 
     /// <summary>Representative file this section will edit (shown in the placeholder).</summary>
     public string FilePath { get; }

@@ -37,6 +37,7 @@ public partial class ShellViewModel : ObservableObject
     private readonly DropService _drops;
     private readonly BackupService _backups;
     private readonly MapCacheService _mapCache;
+    private readonly CashShopService _cashShop;
     private readonly AppSettingsService _appSettings;
     private readonly ConfigurationWizardViewModel _wizard;
     private readonly OnboardingViewModel _onboarding;
@@ -50,6 +51,7 @@ public partial class ShellViewModel : ObservableObject
     private ForgeViewModel? _forgeVm;
     private SettingsViewModel? _settingsVm;
     private MapCacheEditorViewModel? _mapCacheVm;
+    private CashShopManagerViewModel? _cashShopVm;
     private bool _suppressModeReload;
 
     public ObservableCollection<DbSectionViewModel> Sections { get; } = new();
@@ -124,7 +126,8 @@ public partial class ShellViewModel : ObservableObject
         ClientSkillService clientSkills,
         GrfImageService images, SpriteLinkService sprite, MobSpriteService mobSprite, ValidationViewModel validation,
         WorkspaceValidator validator,
-        DropService drops, BackupService backups, MapCacheService mapCache, AppSettingsService appSettings,
+        DropService drops, BackupService backups, MapCacheService mapCache, CashShopService cashShop,
+        AppSettingsService appSettings,
         ConfigurationWizardViewModel wizard, OnboardingViewModel onboarding)
     {
         _configService = config;
@@ -139,8 +142,9 @@ public partial class ShellViewModel : ObservableObject
         _images = images;
         _sprite = sprite;
         _mobSprite = mobSprite;
-        // Sprite registrations are queued in memory and flushed on Save, so they're dirty sources too.
-        _dirty = new CompositeDirtyState(_session.Commands, _clientItems, _clientSkills, _sprite, _mobSprite);
+        _cashShop = cashShop;
+        // Sprite registrations + cash-shop edits are queued in memory and flushed on Save, so they're dirty sources too.
+        _dirty = new CompositeDirtyState(_session.Commands, _clientItems, _clientSkills, _sprite, _mobSprite, _cashShop);
         _drops = drops;
         _backups = backups;
         _mapCache = mapCache;
@@ -179,7 +183,17 @@ public partial class ShellViewModel : ObservableObject
         _session.Commands.Changed += OnCommandsChanged;
         // After an undo/redo, re-validate if the Validation panel is open so its counts + list reflect the
         // reverted model (a quick-fix re-validates on apply, but undo wouldn't otherwise update the panel).
-        _session.Commands.UndoRedoPerformed += () => { if (ReferenceEquals(CurrentContent, _validation)) _validation.RefreshAfterChange(); };
+        _session.Commands.UndoRedoPerformed += () =>
+        {
+            if (ReferenceEquals(CurrentContent, _validation)) _validation.RefreshAfterChange();
+            else if (ReferenceEquals(CurrentContent, _cashShopVm)) _cashShopVm?.RefreshAfterChange();
+        };
+
+        // Group the side nav into collapsible categories (Server Databases / Client / Tools). Configured once
+        // on the collection's default view — survives the Sections.Clear()+rebuild on a profile switch. The list
+        // is tiny (~15 rows) so grouping doesn't cost virtualization here (unlike the validation list).
+        System.Windows.Data.CollectionViewSource.GetDefaultView(Sections).GroupDescriptions
+            .Add(new System.Windows.Data.PropertyGroupDescription(nameof(DbSectionViewModel.Category)));
 
         var active = config.ActiveProfile;
         if (active is not null && active.Paths.AllExist())
@@ -275,7 +289,7 @@ public partial class ShellViewModel : ObservableObject
             re("item_db_equip.yml"), schemaId: "item_db"));
         Sections.Add(new("client_items", "Client Items", SymbolRegular.Image24,
             "Client item info (itemInfo.lua / itemInfo_C.lua): names, descriptions, slots, view and sprite.",
-            string.Empty));
+            string.Empty, category: "Client"));
         Sections.Add(new("mobs", "Mobs", SymbolRegular.Bug24,
             "Monster database (mob_db) with drops, modes and client sprite registration.",
             re("mob_db.yml"), schemaId: "mob_db"));
@@ -296,7 +310,7 @@ public partial class ShellViewModel : ObservableObject
             re("skill_db.yml"), schemaId: "skill_db"));
         Sections.Add(new("client_skills", "Client Skills", SymbolRegular.BookStar24,
             "Client skill info (skillinfoz): names, max level, SP cost, range, prerequisites, descriptions and cast/delay timings.",
-            string.Empty));
+            string.Empty, category: "Client"));
         Sections.Add(new("achievements", "Achievements", SymbolRegular.Trophy24,
             "Achievement database (achievement_db): targets, dependencies and rewards.",
             re("achievement_db.yml"), schemaId: "achievement_db"));
@@ -308,10 +322,13 @@ public partial class ShellViewModel : ObservableObject
             re("mob_summon.yml"), schemaId: "mob_summon"));
         Sections.Add(new("grf", "GRF Browser", SymbolRegular.FolderZip24,
             "Browse client GRF archives: preview icons/sprites and read lua files.",
-            "data\\luafiles514\\lua files"));
+            "data\\luafiles514\\lua files", category: "Client"));
+        Sections.Add(new("cash_shop", "Cash Shop", SymbolRegular.Cart24,
+            "Cash shop (item_cash_db): items and their cash-point prices, per tab.",
+            string.Empty, category: "Tools"));
         Sections.Add(new("validation", "Validation", SymbolRegular.Checkmark24,
             "Cross-file consistency checks for your custom and overridden entries.",
-            string.Empty));
+            string.Empty, category: "Tools"));
     }
 
     partial void OnSelectedSectionChanged(DbSectionViewModel? value) => RebuildContent();
@@ -332,6 +349,12 @@ public partial class ShellViewModel : ObservableObject
         if (section?.Key == "validation")
         {
             CurrentContent = _validation;
+            return;
+        }
+
+        if (section?.Key == "cash_shop")
+        {
+            ShowCashShop();
             return;
         }
 
@@ -521,6 +544,7 @@ public partial class ShellViewModel : ObservableObject
         _comboVm = null;
         _forgeVm = null;
         _mapCacheVm = null;
+        _cashShopVm = null; // rebuilt on next visit; the service holds the model (reset only on profile switch)
     }
 
     /// <summary>Re-syncs the server Items list with the overlay (used after Client Items mutates the shared
@@ -553,7 +577,8 @@ public partial class ShellViewModel : ObservableObject
         bool clientSkillDirty = _clientSkills.IsDirty;
         bool spriteDirty = _sprite.IsDirty;
         bool mobSpriteDirty = _mobSprite.IsDirty;
-        if (saveTargets.Count == 0 && !clientDirty && !clientSkillDirty && !spriteDirty && !mobSpriteDirty)
+        bool cashShopDirty = _cashShop.IsDirty;
+        if (saveTargets.Count == 0 && !clientDirty && !clientSkillDirty && !spriteDirty && !mobSpriteDirty && !cashShopDirty)
         {
             IsModified = _session.Commands.IsModified;
             SaveCommand.NotifyCanExecuteChanged();
@@ -561,7 +586,7 @@ public partial class ShellViewModel : ObservableObject
         }
 
         // Only a manual save is gated. Auto-save timers and exit-save pass gated:false and are never blocked.
-        if (gated && !RunSaveGate(saveTargets, clientDirty, clientSkillDirty))
+        if (gated && !RunSaveGate(saveTargets, clientDirty, clientSkillDirty, cashShopDirty))
             return false;
 
         try
@@ -571,6 +596,7 @@ public partial class ShellViewModel : ObservableObject
             _clientSkills.Save();    // client skillinfoz lua (spliced in place)
             _sprite.Save();          // accessory sprite tables (accessoryid/accname) — queued registrations
             _mobSprite.Save();       // mob sprite tables (npcidentity/jobname) — queued registrations
+            _cashShop.Save();        // cash shop import/item_cash.yml (import-only, atomic)
         }
         catch (Exception ex)
         {
@@ -600,6 +626,7 @@ public partial class ShellViewModel : ObservableObject
         if (clientSkillDirty) written.Add(new("Client skills", _clientSkills.SaveTargetPath));
         if (spriteDirty) written.Add(new("Accessory sprites", _sprite.SaveTargetPath));
         if (mobSpriteDirty) written.Add(new("Mob sprites", _mobSprite.SaveTargetPath));
+        if (cashShopDirty) written.Add(new("Cash shop", _cashShop.SaveTargetPath));
 
         // Snapshot the freshly-saved state into a dated, self-describing backup (manual saves only).
         if (createBackup)
@@ -630,14 +657,14 @@ public partial class ShellViewModel : ObservableObject
     /// <summary>The soft/hard save gate. If the databases about to be written contain Error-level validation
     /// issues, prompts (soft gate) or blocks (hard gate). Returns true to proceed with the save. Validation
     /// failures themselves never block a save.</summary>
-    private bool RunSaveGate(IReadOnlyList<(string Id, string ImportFilePath)> saveTargets, bool clientDirty, bool clientSkillDirty)
+    private bool RunSaveGate(IReadOnlyList<(string Id, string ImportFilePath)> saveTargets, bool clientDirty, bool clientSkillDirty, bool cashShopDirty)
     {
         var settings = _appSettings.Settings;
         if (!settings.ValidateOnSave || settings.SaveGate == ValidationGateMode.Advisory)
             return true;
 
         var dbIds = MidgardStudio.Core.Validation.SaveGate.TargetsToValidate(
-            saveTargets.Select(t => t.Id), clientDirty, clientSkillDirty);
+            saveTargets.Select(t => t.Id), clientDirty, clientSkillDirty, cashShopDirty);
         if (dbIds.Count == 0) return true;
 
         MidgardStudio.Core.Validation.ValidationReport report;
@@ -763,6 +790,19 @@ public partial class ShellViewModel : ObservableObject
         CurrentContent = _backupVm;
     }
 
+    /// <summary>Tools menu → Cash Shop Manager. Routes through the nav section so the side-nav selection
+    /// stays in sync (the section opens the same editor in <see cref="RebuildContent"/>).</summary>
+    [RelayCommand]
+    private void OpenCashShopManager() => GoSection("cash_shop");
+
+    private void ShowCashShop()
+    {
+        _cashShopVm ??= new CashShopManagerViewModel(_cashShop, _session.Commands, _clientItems, _images);
+        _cashShopVm.RefreshAfterChange();
+        ActiveWorkspace = null;
+        CurrentContent = _cashShopVm;
+    }
+
     /// <summary>After a backup restore: reset caches + undo so restored files are re-read on next visit.</summary>
     private void ReloadAfterRestore()
     {
@@ -857,6 +897,14 @@ public partial class ShellViewModel : ObservableObject
 
     private void NavigateToIssue(string dbId, string key)
     {
+        // Cash-shop findings have no server schema — open the Tools editor and select the issue's tab.
+        if (dbId == MidgardStudio.Core.CashShop.CashShopValidator.DbId)
+        {
+            GoSection("cash_shop");
+            _cashShopVm?.SelectTab(key);
+            return;
+        }
+
         // Some sources have no server schema (client_skills, client_items) — pick the key type per source and
         // let NavigateTo route to the bespoke list. (A null schema used to bail, so "Go to" did nothing for
         // client skills; client_items is keyed by numeric item id, client_skills by SKID constant.)

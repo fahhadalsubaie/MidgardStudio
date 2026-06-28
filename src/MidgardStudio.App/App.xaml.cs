@@ -155,6 +155,7 @@ public partial class App : Application
         services.AddSingleton<Services.SkillLookupService>();
         services.AddSingleton<Services.BackupService>();
         services.AddSingleton<Services.MapCacheService>();
+        services.AddSingleton<Services.CashShopService>();
         services.AddSingleton<Services.AppSettingsService>();
         services.AddSingleton<Services.ReferenceIndex>();
         services.AddSingleton<Services.WorkspaceValidator>();

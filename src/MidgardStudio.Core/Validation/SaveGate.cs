@@ -11,13 +11,15 @@ namespace MidgardStudio.Core.Validation;
 public static class SaveGate
 {
     /// <summary>The db ids to validate before saving: the dirty save targets, plus <c>item_db</c> when the
-    /// client items changed and <c>skill_db</c> when the client skills changed (those pull in the cross-file
-    /// checks for the files about to be written).</summary>
-    public static List<string> TargetsToValidate(IEnumerable<string> saveTargetIds, bool clientItemsDirty, bool clientSkillsDirty)
+    /// client items changed, <c>skill_db</c> when the client skills changed, and <c>item_cash</c> when the cash
+    /// shop changed (those pull in the cross-file / bespoke checks for the files about to be written).</summary>
+    public static List<string> TargetsToValidate(IEnumerable<string> saveTargetIds, bool clientItemsDirty,
+        bool clientSkillsDirty, bool cashShopDirty = false)
     {
         var ids = saveTargetIds.ToList();
         if (clientItemsDirty && !ids.Contains("item_db")) ids.Add("item_db");
         if (clientSkillsDirty && !ids.Contains("skill_db")) ids.Add("skill_db");
+        if (cashShopDirty && !ids.Contains("item_cash")) ids.Add("item_cash");
         return ids;
     }
 
