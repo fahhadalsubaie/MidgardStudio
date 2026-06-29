@@ -503,6 +503,10 @@
                             <controls:AudioPlayer Data="{Binding AudioData}"
                                                   Visibility="{Binding ShowAudio, Converter={StaticResource BoolToVis}}" />
 
+                            <!-- 3D model (.rsm / .rsm2) — OpenGL via GLWpfControl -->
+                            <controls:GlModelViewer Model="{Binding ModelData}"
+                                                    Visibility="{Binding ShowModel, Converter={StaticResource BoolToVis}}" />
+
                             <!-- Map / model metadata -->
                             <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="14"
                                           Visibility="{Binding ShowInfo, Converter={StaticResource BoolToVis}}">

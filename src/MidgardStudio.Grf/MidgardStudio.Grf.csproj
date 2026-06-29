@@ -11,6 +11,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- OpenTK.Mathematics (pure-managed) for RSM world-transform baking — matches GRFEditor's matrix semantics. -->
+    <PackageReference Include="OpenTK" Version="4.8.2" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Reference Include="GRF">
       <HintPath>$(GrfLibPath)\GRF.dll</HintPath>
       <Private>true</Private>

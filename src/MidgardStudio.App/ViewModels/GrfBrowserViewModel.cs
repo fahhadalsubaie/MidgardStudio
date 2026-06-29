@@ -21,7 +21,9 @@ internal static class GrfExt
     public static readonly HashSet<string> Sprite = new(StringComparer.OrdinalIgnoreCase)
         { ".spr", ".act" };
     public static readonly HashSet<string> Map = new(StringComparer.OrdinalIgnoreCase)
-        { ".gnd", ".rsw", ".rsm", ".rsm2" };
+        { ".gnd", ".rsw" };
+    public static readonly HashSet<string> Model = new(StringComparer.OrdinalIgnoreCase)
+        { ".rsm", ".rsm2" };
     public static readonly HashSet<string> Audio = new(StringComparer.OrdinalIgnoreCase)
         { ".wav", ".mp3" };
     public static readonly HashSet<string> Text = new(StringComparer.OrdinalIgnoreCase)
@@ -225,6 +227,10 @@ public sealed partial class GrfBrowserViewModel : ObservableObject
     // Audio — decompressed bytes played in-memory (no temp file, no MediaElement)
     [ObservableProperty] private bool _showAudio;
     [ObservableProperty] private byte[]? _audioData;
+
+    // 3D model (.rsm/.rsm2) preview
+    [ObservableProperty] private bool _showModel;
+    [ObservableProperty] private ModelGeometry? _modelData;
 
     // Content search
     [ObservableProperty] private string _searchQuery = string.Empty;
@@ -464,6 +470,7 @@ public sealed partial class GrfBrowserViewModel : ObservableObject
         if (GrfExt.Sprite.Contains(ext)) PreviewSprite(path, ext, data);
         else if (ext == ".gat") PreviewGat(path);
         else if (GrfExt.Image.Contains(ext)) ShowImagePreview(GrfImaging.ToImageSource(_grf.BrowseImage(path)), data);
+        else if (GrfExt.Model.Contains(ext)) PreviewModel(path, data);
         else if (GrfExt.Map.Contains(ext)) PreviewMapInfo(path, data);
         else if (GrfExt.Text.Contains(ext)) ShowTextPreview(_grf.BrowseText(path, _viewCodePage) ?? (data is null ? "(unreadable)" : HexDump(data)));
         else ShowTextPreview(data is null ? "(unreadable)" : HexDump(data));
@@ -534,11 +541,26 @@ public sealed partial class GrfBrowserViewModel : ObservableObject
         ShowText = true;
     }
 
+    private void PreviewModel(string path, byte[]? data)
+    {
+        if (data is null) { ShowTextPreview("(unreadable)"); return; }
+        ModelData = _grf.BuildModel(path);
+        if (ModelData is null || ModelData.TotalVertices == 0)
+        {
+            // geometry couldn't be baked — fall back to the model's metadata + texture list
+            PreviewMapInfo(path, data);
+            return;
+        }
+        ShowModel = true;
+        InfoKind = $"3D Model · {ModelData.TotalVertices / 3} tris";
+    }
+
     private void ClearPreview()
     {
         _previewPath = null;
-        HasPreview = ShowImage = ShowAnimation = ShowInfo = ShowText = false;
+        HasPreview = ShowImage = ShowAnimation = ShowInfo = ShowText = ShowModel = false;
         CleanupAudio();
+        ModelData = null;
         PreviewImage = null;
         Animation = null;
         PreviewText = null;

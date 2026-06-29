@@ -183,6 +183,25 @@ public sealed class GrfService : IDisposable
         catch { return null; }
     }
 
+    /// <summary>Parses an .rsm/.rsm2 model and bakes it into GL-ready geometry (with textures), or null.</summary>
+    public ModelGeometry? BuildModel(string relativePath)
+    {
+        var data = BrowseData(relativePath);
+        if (data is null) return null;
+        try { return RsmModelBuilder.Build(new Rsm(data), LoadModelTexture); }
+        catch { return null; }
+    }
+
+    private ModelTexture? LoadModelTexture(string rawTextureName)
+    {
+        try
+        {
+            var img = BrowseImage(ResolveTexture(rawTextureName));
+            return img is null ? null : GrfTexture.ToBgra(img);
+        }
+        catch { return null; }
+    }
+
     private static string ResolveTexture(string name)
     {
         name = name.Replace('/', '\\').TrimStart('\\');
