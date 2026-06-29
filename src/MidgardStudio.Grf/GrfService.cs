@@ -6,6 +6,7 @@ using GRF.FileFormats.LubFormat;
 using GRF.FileFormats.RsmFormat;
 using GRF.FileFormats.RswFormat;
 using GRF.Image;
+using MidgardStudio.Core.Grf;
 using Utilities.Services;
 
 namespace MidgardStudio.Grf;
@@ -206,6 +207,33 @@ public sealed class GrfService : IDisposable
             return Lub.IsCompiled(data)
                 ? new Lub(data).Decompile()
                 : EncodingService.DisplayEncoding.GetString(data);
+        }
+        catch { return null; }
+    }
+
+    /// <summary>
+    /// Decodes a browse entry as text in a specific <paramref name="codePage"/> (lub bytecode still decompiles).
+    /// Used by the browser's view-encoding selector; does NOT touch the global display encoding.
+    /// </summary>
+    public string? BrowseText(string relativePath, int codePage)
+    {
+        var data = BrowseData(relativePath);
+        if (data is null) return null;
+        try
+        {
+            return Lub.IsCompiled(data) ? new Lub(data).Decompile() : ViewEncoding.Decode(data, codePage);
+        }
+        catch { return null; }
+    }
+
+    /// <summary>Size / compressed size / offset / flags for a browse entry, or null.</summary>
+    public GrfEntryInfo? BrowseEntryInfo(string relativePath)
+    {
+        if (_browseSource is null) return null;
+        try
+        {
+            var e = _browse.FileTable.TryGet(Normalize(relativePath));
+            return e is null ? null : new GrfEntryInfo(e.SizeDecompressed, e.SizeCompressed, e.FileExactOffset, (int)e.Flags);
         }
         catch { return null; }
     }

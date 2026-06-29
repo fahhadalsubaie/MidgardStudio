@@ -5,6 +5,8 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
              xmlns:controls="clr-namespace:MidgardStudio.App.Controls"
+             xmlns:common="clr-namespace:MidgardStudio.App.Common"
+             xmlns:avalon="http://icsharpcode.net/sharpdevelop/avalonedit"
              xmlns:vm="clr-namespace:MidgardStudio.App.ViewModels"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance Type=vm:GrfBrowserViewModel}">
@@ -162,17 +164,46 @@
                 </Setter.Value>
             </Setter>
         </Style>
+
+        <!-- Background-swatch button: a clean filled color chip (no default button chrome). -->
+        <Style x:Key="SwatchButton" TargetType="Button">
+            <Setter Property="Width" Value="22" />
+            <Setter Property="Height" Value="22" />
+            <Setter Property="Margin" Value="3,0,0,0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="SnapsToDevicePixels" Value="True" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="B" CornerRadius="4" BorderBrush="#40FFFFFF" BorderThickness="1"
+                                Background="{TemplateBinding Background}" />
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="B" Property="BorderBrush" Value="#CCFFFFFF" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </UserControl.Resources>
 
     <Grid>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="206" />
-            <ColumnDefinition Width="316" />
-            <ColumnDefinition Width="*" MinWidth="360" />
+            <ColumnDefinition x:Name="Col0" Width="206" MinWidth="150" />
+            <ColumnDefinition Width="6" />
+            <ColumnDefinition x:Name="Col1" Width="316" MinWidth="180" />
+            <ColumnDefinition Width="6" />
+            <ColumnDefinition x:Name="Col2" Width="*" MinWidth="320" />
         </Grid.ColumnDefinitions>
 
+        <GridSplitter Grid.Column="1" Width="6" HorizontalAlignment="Stretch" Background="Transparent"
+                      VerticalAlignment="Stretch" ResizeBehavior="PreviousAndNext" />
+        <GridSplitter Grid.Column="3" Width="6" HorizontalAlignment="Stretch" Background="Transparent"
+                      VerticalAlignment="Stretch" ResizeBehavior="PreviousAndNext" />
+
         <!-- ===== Sidebar ===== -->
-        <Border Grid.Column="0" Background="#0AFFFFFF" BorderBrush="#18FFFFFF" BorderThickness="1" CornerRadius="8" Margin="0,0,8,0">
+        <Border Grid.Column="0" Background="#0AFFFFFF" BorderBrush="#18FFFFFF" BorderThickness="1" CornerRadius="8" Margin="0,0,2,0">
             <Grid Margin="10,12">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
@@ -225,24 +256,50 @@
         </Border>
 
         <!-- ===== File table ===== -->
-        <Grid Grid.Column="1" Margin="0,0,8,0">
+        <Grid Grid.Column="2" Margin="2,0,2,0">
             <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
+            <!-- View encoding (above the file list) -->
             <DockPanel Grid.Row="0" Margin="2,0,2,8">
-                <ui:Button DockPanel.Dock="Left" Appearance="Transparent" Padding="4" MinWidth="0" Margin="0,0,8,0"
-                           Command="{Binding UpCommand}" ToolTip="Up one folder">
-                    <ui:Button.Icon><ui:SymbolIcon Symbol="ArrowUp24" FontSize="14" /></ui:Button.Icon>
-                </ui:Button>
-                <TextBlock Text="{Binding CurrentPath}" VerticalAlignment="Center" Opacity="0.6" FontSize="11.5"
-                           FontFamily="Consolas" TextTrimming="CharacterEllipsis"
+                <TextBlock Text="Encoding" DockPanel.Dock="Left" VerticalAlignment="Center" Opacity="0.55" Margin="0,0,8,0" FontSize="12"
                            Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                <ui:Button DockPanel.Dock="Right" Content="Go" Padding="8,4" Margin="6,0,0,0" Command="{Binding ApplyCustomEncodingCommand}"
+                           Visibility="{Binding CustomEncodingVisible, Converter={StaticResource BoolToVis}}" />
+                <TextBox DockPanel.Dock="Right" Text="{Binding CustomEncodingText, UpdateSourceTrigger=PropertyChanged}" Width="64"
+                         VerticalContentAlignment="Center" ToolTip="Codepage number, then Enter"
+                         Visibility="{Binding CustomEncodingVisible, Converter={StaticResource BoolToVis}}">
+                    <TextBox.InputBindings><KeyBinding Key="Enter" Command="{Binding ApplyCustomEncodingCommand}" /></TextBox.InputBindings>
+                </TextBox>
+                <ComboBox ItemsSource="{Binding EncodingChoices}" SelectedItem="{Binding SelectedEncoding}"
+                          DisplayMemberPath="Display" HorizontalAlignment="Stretch"
+                          ToolTip="Re-decode names + contents for viewing only — never written to the GRF or data folder" />
             </DockPanel>
 
-            <Border Grid.Row="1" Background="#08FFFFFF" BorderBrush="#18FFFFFF" BorderThickness="1" CornerRadius="8">
+            <!-- Up · live filter (auto, no button) · content search -->
+            <Grid Grid.Row="1" Margin="2,0,2,8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <ui:Button Grid.Column="0" Appearance="Transparent" Padding="6" MinWidth="0"
+                           Command="{Binding UpCommand}" ToolTip="Up one folder">
+                    <ui:SymbolIcon Symbol="ArrowUp24" FontSize="14" />
+                </ui:Button>
+                <ui:TextBox Grid.Column="1" Margin="6,0,0,0" PlaceholderText="Filter this folder…"
+                            Text="{Binding FilterText, UpdateSourceTrigger=PropertyChanged}" />
+                <ui:Button Grid.Column="2" Margin="6,0,0,0" Appearance="Transparent" Padding="6" MinWidth="0"
+                           Command="{Binding OpenSearchCommand}" ToolTip="Search file contents across the archive">
+                    <ui:SymbolIcon Symbol="Search24" FontSize="14" />
+                </ui:Button>
+            </Grid>
+
+            <Border Grid.Row="2" Background="#08FFFFFF" BorderBrush="#18FFFFFF" BorderThickness="1" CornerRadius="8">
                 <ListView x:Name="Files" ItemsSource="{Binding Items}" Background="Transparent" BorderThickness="0"
                           ItemContainerStyle="{StaticResource GrfFileRow}" GridViewColumnHeader.Click="OnHeaderClick"
                           VirtualizingStackPanel.IsVirtualizing="True" VirtualizingStackPanel.VirtualizationMode="Recycling">
@@ -288,12 +345,13 @@
                 </ListView>
             </Border>
 
-            <TextBlock Grid.Row="2" Text="{Binding Status}" Opacity="0.55" Margin="2,8,0,0" FontSize="11"
+            <TextBlock Grid.Row="3" Text="{Binding Status}" Opacity="0.55" Margin="2,8,0,0" FontSize="11"
                        Foreground="{DynamicResource TextFillColorPrimaryBrush}" TextTrimming="CharacterEllipsis" />
         </Grid>
 
         <!-- ===== Preview (largest) ===== -->
-        <Border Grid.Column="2" Background="#0AFFFFFF" BorderBrush="#18FFFFFF" BorderThickness="1" CornerRadius="8">
+        <Border Grid.Column="4" Background="#0AFFFFFF" BorderBrush="#18FFFFFF" BorderThickness="1" CornerRadius="8" Margin="2,0,0,0">
+          <Grid>
             <Grid Margin="14">
                 <!-- Placeholder -->
                 <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center"
@@ -306,25 +364,63 @@
                 <Grid Visibility="{Binding HasPreview, Converter={StaticResource BoolToVis}}">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
 
                     <!-- Toolbar -->
                     <DockPanel Grid.Row="0" Margin="0,0,0,12">
                         <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top">
-                            <!-- Image tools -->
-                            <StackPanel Orientation="Horizontal" Margin="0,0,8,0"
+                            <!-- Image tools: zoom + background swatch -->
+                            <StackPanel Orientation="Horizontal" Margin="0,0,10,0" VerticalAlignment="Center"
                                         Visibility="{Binding IsImageKind, Converter={StaticResource BoolToVis}}">
                                 <ui:Button Appearance="Transparent" Padding="6,4" MinWidth="0" Content="−" FontSize="14" Command="{Binding ZoomOutCommand}" ToolTip="Zoom out" />
                                 <ui:Button Appearance="Transparent" Padding="6,4" MinWidth="0" Content="1:1" FontSize="11" Command="{Binding ZoomResetCommand}" ToolTip="Actual size" />
                                 <ui:Button Appearance="Transparent" Padding="6,4" MinWidth="0" Content="+" FontSize="14" Command="{Binding ZoomInCommand}" ToolTip="Zoom in" />
-                                <ToggleButton Style="{StaticResource GrfToggle}" Margin="4,0,0,0" IsChecked="{Binding Checkerboard}" ToolTip="Transparency grid">
-                                    <ui:SymbolIcon Symbol="Grid24" FontSize="14" />
+                                <Border Width="1" Background="#22FFFFFF" Margin="8,3" />
+                                <Button Style="{StaticResource SwatchButton}" Background="{StaticResource Checkerboard}" Command="{Binding SetPreviewBackgroundCommand}" CommandParameter="checker" ToolTip="Checkerboard (transparency)" />
+                                <Button Style="{StaticResource SwatchButton}" Background="Black" Command="{Binding SetPreviewBackgroundCommand}" CommandParameter="black" ToolTip="Black" />
+                                <Button Style="{StaticResource SwatchButton}" Background="White" Command="{Binding SetPreviewBackgroundCommand}" CommandParameter="white" ToolTip="White" />
+                                <Button Style="{StaticResource SwatchButton}" Background="Magenta" Command="{Binding SetPreviewBackgroundCommand}" CommandParameter="magenta" ToolTip="Magenta" />
+                                <ToggleButton x:Name="CustomSwatchToggle" Width="22" Height="22" Margin="3,0,0,0" Cursor="Hand" ToolTip="Custom color">
+                                    <ToggleButton.Template>
+                                        <ControlTemplate TargetType="ToggleButton">
+                                            <Border CornerRadius="4" BorderBrush="#40FFFFFF" BorderThickness="1">
+                                                <Border.Background>
+                                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                                        <GradientStop Color="#FF3B30" Offset="0" /><GradientStop Color="#FFCC00" Offset="0.3" />
+                                                        <GradientStop Color="#34C759" Offset="0.55" /><GradientStop Color="#0A84FF" Offset="0.8" />
+                                                        <GradientStop Color="#BF5AF2" Offset="1" />
+                                                    </LinearGradientBrush>
+                                                </Border.Background>
+                                            </Border>
+                                        </ControlTemplate>
+                                    </ToggleButton.Template>
                                 </ToggleButton>
+                                <Popup PlacementTarget="{Binding ElementName=CustomSwatchToggle}" Placement="Bottom" StaysOpen="False"
+                                       IsOpen="{Binding IsChecked, ElementName=CustomSwatchToggle}" AllowsTransparency="True">
+                                    <Border Background="#222230" BorderBrush="#33FFFFFF" BorderThickness="1" CornerRadius="6" Padding="10" Margin="0,4,0,0">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="#" VerticalAlignment="Center" Opacity="0.6" Margin="0,0,2,0"
+                                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                            <TextBox x:Name="HexBox" Width="84" VerticalContentAlignment="Center">
+                                                <TextBox.InputBindings>
+                                                    <KeyBinding Key="Enter" Command="{Binding SetPreviewBackgroundCommand}"
+                                                                CommandParameter="{Binding Text, RelativeSource={RelativeSource AncestorType=TextBox}}" />
+                                                </TextBox.InputBindings>
+                                            </TextBox>
+                                            <ui:Button Content="Apply" Margin="6,0,0,0" Padding="8,4" Command="{Binding SetPreviewBackgroundCommand}"
+                                                       CommandParameter="{Binding Text, ElementName=HexBox}" />
+                                        </StackPanel>
+                                    </Border>
+                                </Popup>
                             </StackPanel>
                             <ToggleButton Style="{StaticResource GrfToggle}" Margin="0,0,8,0" IsChecked="{Binding WrapText}" ToolTip="Wrap lines"
                                           Visibility="{Binding ShowText, Converter={StaticResource BoolToVis}}">
                                 <TextBlock Text="Wrap" FontSize="11.5" />
+                            </ToggleButton>
+                            <ToggleButton Style="{StaticResource GrfToggle}" Margin="0,0,8,0" IsChecked="{Binding ShowDetails}" ToolTip="File details, properties + hashes">
+                                <TextBlock Text="Details" FontSize="11.5" />
                             </ToggleButton>
                             <ui:Button Appearance="Transparent" Padding="8,4" Command="{Binding ExportCommand}" IsEnabled="{Binding CanExport}" ToolTip="Export this file to disk">
                                 <StackPanel Orientation="Horizontal">
@@ -341,13 +437,51 @@
                         </StackPanel>
                     </DockPanel>
 
+                    <!-- Details: properties + hashes -->
+                    <Border Grid.Row="1" Margin="0,0,0,12" Padding="12,10" Background="#10FFFFFF" CornerRadius="6"
+                            Visibility="{Binding ShowDetails, Converter={StaticResource BoolToVis}}">
+                        <StackPanel>
+                            <ItemsControl ItemsSource="{Binding DetailRows}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="0,2">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="110" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="{Binding Label}" Opacity="0.5" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                            <TextBlock Grid.Column="1" Text="{Binding Value}" FontFamily="Consolas"
+                                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <Grid Margin="0,6,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="110" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="CRC32 / MD5" Opacity="0.5" VerticalAlignment="Center"
+                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding Crc32}" FontFamily="Consolas" Margin="0,0,12,0"
+                                               Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                    <TextBlock Text="{Binding Md5}" FontFamily="Consolas" TextTrimming="CharacterEllipsis" MaxWidth="240"
+                                               Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                </StackPanel>
+                                <ui:Button Grid.Column="2" Content="Compute" Padding="8,3" Command="{Binding ComputeHashesCommand}" />
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
                     <!-- Content -->
-                    <Border Grid.Row="1" Background="#12000000" CornerRadius="6" ClipToBounds="True">
+                    <Border Grid.Row="2" Background="#12000000" CornerRadius="6" ClipToBounds="True">
                         <Grid>
-                            <!-- Image (zoom + transparency grid) -->
+                            <!-- Image (zoom + background swatch) -->
                             <Grid Visibility="{Binding ShowImage, Converter={StaticResource BoolToVis}}">
-                                <Border Background="{StaticResource Checkerboard}"
-                                        Visibility="{Binding Checkerboard, Converter={StaticResource BoolToVis}}" />
+                                <Border Background="{StaticResource Checkerboard}" />
+                                <Border Background="{Binding PreviewBackground}" />
                                 <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" Background="Transparent">
                                     <Image Source="{Binding PreviewImage}" Stretch="None" Margin="20"
                                            RenderOptions.BitmapScalingMode="NearestNeighbor"
@@ -364,6 +498,10 @@
                                      Visibility="{Binding ShowAnimation, Converter={StaticResource BoolToVis}}">
                                 <controls:AnimatedSpriteImage Frames="{Binding Animation.Frames}" IntervalMs="{Binding Animation.IntervalMs}" />
                             </Viewbox>
+
+                            <!-- Audio (.wav / .mp3) — in-memory NAudio, no temp file -->
+                            <controls:AudioPlayer Data="{Binding AudioData}"
+                                                  Visibility="{Binding ShowAudio, Converter={StaticResource BoolToVis}}" />
 
                             <!-- Map / model metadata -->
                             <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="14"
@@ -421,16 +559,54 @@
                                 </StackPanel>
                             </ScrollViewer>
 
-                            <!-- Text / lua / hex -->
-                            <ui:TextBox Text="{Binding PreviewText, Mode=OneWay}" IsReadOnly="True" FontFamily="Consolas" FontSize="12"
-                                        Background="Transparent" BorderThickness="0" Padding="8"
-                                        TextWrapping="{Binding WrapText, Converter={StaticResource BoolToWrap}}"
-                                        VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
-                                        Visibility="{Binding ShowText, Converter={StaticResource BoolToVis}}" />
+                            <!-- Text / lua / hex (syntax-highlighted) -->
+                            <avalon:TextEditor common:AvalonEditBehavior.BindableText="{Binding PreviewText, Mode=OneWay}"
+                                               common:AvalonEditBehavior.HighlightExtension="{Binding PreviewExt}"
+                                               IsReadOnly="True" ShowLineNumbers="True" FontFamily="Consolas" FontSize="12"
+                                               Background="Transparent" Foreground="#E8E8F2" LineNumbersForeground="#6E6E88"
+                                               Padding="6,4,0,0" WordWrap="{Binding WrapText}"
+                                               HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"
+                                               Visibility="{Binding ShowText, Converter={StaticResource BoolToVis}}" />
                         </Grid>
                     </Border>
                 </Grid>
             </Grid>
+
+            <!-- ===== Content-search results overlay ===== -->
+            <Border Background="#F00E0E14" CornerRadius="8"
+                    Visibility="{Binding ShowSearch, Converter={StaticResource BoolToVis}}">
+                <DockPanel Margin="14">
+                    <DockPanel DockPanel.Dock="Top" Margin="0,0,0,10">
+                        <ui:Button DockPanel.Dock="Right" Content="Close" Padding="8,4" Command="{Binding CloseSearchCommand}" />
+                        <ui:Button DockPanel.Dock="Right" Content="Cancel" Padding="8,4" Margin="0,0,8,0" Command="{Binding CancelSearchCommand}"
+                                   Visibility="{Binding IsSearching, Converter={StaticResource BoolToVis}}" />
+                        <ui:ProgressRing DockPanel.Dock="Right" IsIndeterminate="True" Width="18" Height="18" Margin="0,0,10,0"
+                                         Visibility="{Binding IsSearching, Converter={StaticResource BoolToVis}}" />
+                        <TextBlock Text="Search results" FontWeight="SemiBold" VerticalAlignment="Center"
+                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                    </DockPanel>
+                    <DockPanel DockPanel.Dock="Top" Margin="0,0,0,10">
+                        <ui:Button DockPanel.Dock="Right" Content="Search" Padding="10,5" Margin="6,0,0,0" Command="{Binding SearchCommand}" />
+                        <ui:TextBox PlaceholderText="Search file contents across the archive…"
+                                    Text="{Binding SearchQuery, UpdateSourceTrigger=PropertyChanged}">
+                            <ui:TextBox.InputBindings><KeyBinding Key="Enter" Command="{Binding SearchCommand}" /></ui:TextBox.InputBindings>
+                        </ui:TextBox>
+                    </DockPanel>
+                    <ListBox x:Name="SearchList" ItemsSource="{Binding SearchResults}" Background="Transparent" BorderThickness="0"
+                             ItemContainerStyle="{StaticResource GrfRowItem}" MouseDoubleClick="OnSearchActivate" KeyDown="OnSearchKeyDown">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel>
+                                    <TextBlock Text="{Binding Display}" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                    <TextBlock Text="{Binding Path}" Opacity="0.45" FontSize="10.5" FontFamily="Consolas" TextTrimming="CharacterEllipsis"
+                                               Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+            </Border>
+          </Grid>
         </Border>
     </Grid>
 </UserControl>

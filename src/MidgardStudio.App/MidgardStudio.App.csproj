@@ -25,6 +25,7 @@
     <PackageReference Include="AvalonEdit" Version="6.3.1.120" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.9" />
+    <PackageReference Include="NAudio" Version="2.2.1" />
     <PackageReference Include="Serilog.Extensions.Hosting" Version="10.0.0" />
     <PackageReference Include="Serilog.Sinks.Console" Version="6.1.1" />
     <PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
@@ -43,6 +44,7 @@
 
   <ItemGroup>
     <Resource Include="Assets\logo.png" />
+    <EmbeddedResource Include="Resources\Lua.xshd" />
   </ItemGroup>
 
 </Project>

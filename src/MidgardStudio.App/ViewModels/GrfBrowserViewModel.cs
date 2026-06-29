@@ -1,12 +1,14 @@
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Win32;
 using MidgardStudio.App.Common;
+using MidgardStudio.Core.Grf;
 using MidgardStudio.Core.Workspace;
 using MidgardStudio.Grf;
 
@@ -20,6 +22,8 @@ internal static class GrfExt
         { ".spr", ".act" };
     public static readonly HashSet<string> Map = new(StringComparer.OrdinalIgnoreCase)
         { ".gnd", ".rsw", ".rsm", ".rsm2" };
+    public static readonly HashSet<string> Audio = new(StringComparer.OrdinalIgnoreCase)
+        { ".wav", ".mp3" };
     public static readonly HashSet<string> Text = new(StringComparer.OrdinalIgnoreCase)
         { ".lua", ".lub", ".txt", ".xml", ".ini", ".inf", ".conf", ".log", ".json", ".csv", ".tsv",
           ".ezv", ".lst", ".js", ".c", ".cpp", ".h", ".bat", ".ase", ".scp", ".layout", ".font",
@@ -83,7 +87,9 @@ public sealed partial class GrfItem : ObservableObject
     public string FullPath { get; }
     public bool IsFolder { get; }
     public bool IsUp { get; } // the ".." parent row
-    public string Ext => IsFolder ? string.Empty : Path.GetExtension(Name).ToLowerInvariant();
+    // Extension comes from the raw FullPath, not the (re-projected) display Name: under a DBCS view encoding a
+    // trailing high byte could swallow the '.', so only the byte-stable lookup key gives a reliable extension.
+    public string Ext => IsFolder ? string.Empty : Path.GetExtension(FullPath).ToLowerInvariant();
     public bool IsImage => !IsFolder && !IsUp && (GrfExt.Image.Contains(Ext) || GrfExt.Sprite.Contains(Ext) || Ext == ".gat");
     public string TypeText => IsUp ? string.Empty : IsFolder ? "Folder" : (Ext.Length > 1 ? Ext[1..].ToUpperInvariant() : "File");
 
@@ -110,6 +116,9 @@ public sealed partial class GrfItem : ObservableObject
 
 /// <summary>A key/value row in the metadata preview.</summary>
 public sealed record InfoRow(string Label, string Value);
+
+/// <summary>A content-search hit: the display name plus the raw (1252) lookup path to navigate to.</summary>
+public sealed record SearchHit(string Display, string Path);
 
 /// <summary>A lazily-decoded texture thumbnail in the model/ground preview.</summary>
 public sealed partial class GrfThumb : ObservableObject
@@ -146,12 +155,17 @@ public sealed partial class GrfBrowserViewModel : ObservableObject
     private readonly Dictionary<string, (SortedSet<string> Sub, SortedSet<string> Files)> _dirs =
         new(StringComparer.OrdinalIgnoreCase);
     private string? _previewPath;
+    private int _viewCodePage = ViewEncoding.DefaultCodePage;
+    private CancellationTokenSource? _searchCts;
+
+    private static readonly EncodingChoice CustomEncoding = new(-1, "Custom codepage…");
 
     public GrfBrowserViewModel(GrfService grf, IWorkspaceConfigService config)
     {
         _grf = grf;
         _config = config;
         RefreshFromConfig();
+        SelectedEncoding = EncodingChoices[0]; // 1252 default; never written, resets each launch
     }
 
     public ObservableCollection<string> Sources { get; } = new();
@@ -160,6 +174,12 @@ public sealed partial class GrfBrowserViewModel : ObservableObject
     public ObservableCollection<InfoRow> InfoRows { get; } = new();
     public ObservableCollection<string> InfoItems { get; } = new();
     public ObservableCollection<GrfThumb> Thumbs { get; } = new();
+
+    /// <summary>The view-encoding selector contents: the fixed codepages plus a "Custom codepage…" entry.</summary>
+    public ObservableCollection<EncodingChoice> EncodingChoices { get; } =
+        new(ViewEncoding.Choices.Append(CustomEncoding));
+    public ObservableCollection<InfoRow> DetailRows { get; } = new();
+    public ObservableCollection<SearchHit> SearchResults { get; } = new();
 
     [ObservableProperty] private string? _selectedSource;
     [ObservableProperty] private string _status = string.Empty;
@@ -182,14 +202,40 @@ public sealed partial class GrfBrowserViewModel : ObservableObject
     [ObservableProperty] private string _previewTitle = string.Empty;
     [ObservableProperty] private string _previewSubtitle = string.Empty;
     [ObservableProperty] private string _infoKind = string.Empty;
+    [ObservableProperty] private string _previewExt = string.Empty; // drives syntax highlighting in the text view
 
     // Tools
     [ObservableProperty] private double _zoom = 1.0;
-    [ObservableProperty] private bool _checkerboard = true;
     [ObservableProperty] private bool _wrapText;
+    [ObservableProperty] private Brush? _previewBackground; // null => the checkerboard underlay shows through
+
+    // View encoding (re-decodes content + display names; never written, resets each launch)
+    [ObservableProperty] private EncodingChoice? _selectedEncoding;
+    [ObservableProperty] private bool _customEncodingVisible;
+    [ObservableProperty] private string _customEncodingText = string.Empty;
+
+    // File filter
+    [ObservableProperty] private string _filterText = string.Empty;
+
+    // Details / hashes
+    [ObservableProperty] private bool _showDetails;
+    [ObservableProperty] private string? _crc32;
+    [ObservableProperty] private string? _md5;
+
+    // Audio — decompressed bytes played in-memory (no temp file, no MediaElement)
+    [ObservableProperty] private bool _showAudio;
+    [ObservableProperty] private byte[]? _audioData;
+
+    // Content search
+    [ObservableProperty] private string _searchQuery = string.Empty;
+    [ObservableProperty] private bool _isSearching;
+    [ObservableProperty] private bool _showSearch;
 
     public bool CanExport => _previewPath is not null;
     public bool IsImageKind => ShowImage;
+
+    /// <summary>Re-projects a raw 1252 name into the current view codepage for display (lookup keys stay raw).</summary>
+    private string Display(string raw) => ViewEncoding.Reproject(raw, _viewCodePage);
 
     public string SourceLabel(string s) => Path.GetFileName(s);
 
@@ -237,6 +283,10 @@ public sealed partial class GrfBrowserViewModel : ObservableObject
 
             foreach (var node in roots) RootNodes.Add(node);
             Navigate(string.Empty);
+            // Auto-expand the top "data" folder (or the first root) so the tree opens ready to browse.
+            var open = RootNodes.FirstOrDefault(n => string.Equals(n.Name, "data", StringComparison.OrdinalIgnoreCase))
+                       ?? RootNodes.FirstOrDefault();
+            if (open is not null) open.IsExpanded = true;
             Status = $"{Path.GetFileName(source)} · {_dirs.Count:N0} folders · {CountFiles():N0} files";
         }
         catch (Exception ex)
@@ -298,7 +348,7 @@ public sealed partial class GrfBrowserViewModel : ObservableObject
         {
             string full = dir.Length == 0 ? sub : dir + "\\" + sub;
             bool hasChildren = _dirs.TryGetValue(full, out var cd) && cd.Sub.Count > 0;
-            yield return new GrfNode(sub, full, hasChildren, n => LoadTreeChildren(n.FullPath));
+            yield return new GrfNode(Display(sub), full, hasChildren, n => LoadTreeChildren(n.FullPath));
         }
     }
 
@@ -317,9 +367,15 @@ public sealed partial class GrfBrowserViewModel : ObservableObject
         if (_dirs.TryGetValue(CurrentPath, out var d))
         {
             foreach (var sub in d.Sub)
-                folders.Add(new GrfItem(sub, CurrentPath.Length == 0 ? sub : CurrentPath + "\\" + sub, isFolder: true, isUp: false, null, null));
+            {
+                if (!GrfSearch.NameMatches(Display(sub), FilterText)) continue;
+                folders.Add(new GrfItem(Display(sub), CurrentPath.Length == 0 ? sub : CurrentPath + "\\" + sub, isFolder: true, isUp: false, null, null));
+            }
             foreach (var file in d.Files)
-                files.Add(new GrfItem(file, CurrentPath.Length == 0 ? file : CurrentPath + "\\" + file, isFolder: false, isUp: false, ResolveThumb, p => _grf.BrowseSize(p.FullPath)));
+            {
+                if (!GrfSearch.NameMatches(Display(file), FilterText)) continue;
+                files.Add(new GrfItem(Display(file), CurrentPath.Length == 0 ? file : CurrentPath + "\\" + file, isFolder: false, isUp: false, ResolveThumb, p => _grf.BrowseSize(p.FullPath)));
+            }
         }
 
         Comparison<GrfItem> cmp = SortColumn switch
@@ -394,17 +450,22 @@ public sealed partial class GrfBrowserViewModel : ObservableObject
         _previewPath = path;
         OnPropertyChanged(nameof(CanExport));
         HasPreview = true;
-        PreviewTitle = Path.GetFileName(path);
+        PreviewTitle = Display(Path.GetFileName(path));
         Zoom = 1.0;
 
-        byte[]? data = _grf.BrowseData(path);
         string ext = Path.GetExtension(path).ToLowerInvariant();
+        PreviewExt = ext;
+        PopulateDetails(path);
 
+        // Audio decompresses + writes a temp file off the UI thread so a big .mp3 never freezes the app.
+        if (GrfExt.Audio.Contains(ext)) { _ = PreviewAudioAsync(path); return; }
+
+        byte[]? data = _grf.BrowseData(path);
         if (GrfExt.Sprite.Contains(ext)) PreviewSprite(path, ext, data);
         else if (ext == ".gat") PreviewGat(path);
         else if (GrfExt.Image.Contains(ext)) ShowImagePreview(GrfImaging.ToImageSource(_grf.BrowseImage(path)), data);
         else if (GrfExt.Map.Contains(ext)) PreviewMapInfo(path, data);
-        else if (GrfExt.Text.Contains(ext)) ShowTextPreview(_grf.BrowseText(path) ?? (data is null ? "(unreadable)" : HexDump(data)));
+        else if (GrfExt.Text.Contains(ext)) ShowTextPreview(_grf.BrowseText(path, _viewCodePage) ?? (data is null ? "(unreadable)" : HexDump(data)));
         else ShowTextPreview(data is null ? "(unreadable)" : HexDump(data));
 
         PreviewSubtitle = BuildSubtitle(data);
@@ -477,6 +538,7 @@ public sealed partial class GrfBrowserViewModel : ObservableObject
     {
         _previewPath = null;
         HasPreview = ShowImage = ShowAnimation = ShowInfo = ShowText = false;
+        CleanupAudio();
         PreviewImage = null;
         Animation = null;
         PreviewText = null;
@@ -484,14 +546,176 @@ public sealed partial class GrfBrowserViewModel : ObservableObject
         InfoRows.Clear();
         InfoItems.Clear();
         Thumbs.Clear();
+        DetailRows.Clear();
+        Crc32 = Md5 = null;
         OnPropertyChanged(nameof(CanExport));
         OnPropertyChanged(nameof(IsImageKind));
+    }
+
+    // ----- View encoding: re-decode content + re-project display names (never writes) -----
+
+    partial void OnSelectedEncodingChanged(EncodingChoice? value)
+    {
+        if (value is null) return;
+        if (value.CodePage < 0) { CustomEncodingVisible = true; return; } // "Custom codepage…" — reveal the box
+        CustomEncodingVisible = false;
+        ApplyCodePage(value.CodePage);
+    }
+
+    /// <summary>Applies the codepage typed into the custom box (bound to Enter / a Go button).</summary>
+    [RelayCommand]
+    private void ApplyCustomEncoding()
+    {
+        if (int.TryParse(CustomEncodingText.Trim(), out int cp) && ViewEncoding.IsKnown(cp)) ApplyCodePage(cp);
+        else Status = $"Unknown codepage \"{CustomEncodingText}\".";
+    }
+
+    private void ApplyCodePage(int codePage)
+    {
+        if (codePage == _viewCodePage) return;
+        _viewCodePage = codePage;
+
+        // re-decode the open text preview in place
+        if (_previewPath is not null && ShowText && GrfExt.Text.Contains(Path.GetExtension(_previewPath).ToLowerInvariant()))
+            PreviewText = _grf.BrowseText(_previewPath, _viewCodePage) ?? PreviewText;
+        if (_previewPath is not null) PreviewTitle = Display(Path.GetFileName(_previewPath));
+
+        // re-project the displayed tree + list names (lookup keys stay 1252)
+        RootNodes.Clear();
+        foreach (var node in LoadTreeChildren(string.Empty)) RootNodes.Add(node);
+        RebuildItems();
+    }
+
+    partial void OnFilterTextChanged(string value) => RebuildItems();
+
+    // ----- Details (properties) + hashes -----
+
+    private void PopulateDetails(string path)
+    {
+        DetailRows.Clear();
+        Crc32 = Md5 = null;
+        if (_grf.BrowseEntryInfo(path) is { } info)
+            foreach (var (label, val) in GrfEntryProperties.Format(info))
+                DetailRows.Add(new InfoRow(label, val));
+    }
+
+    [RelayCommand]
+    private async Task ComputeHashes()
+    {
+        if (_previewPath is null) return;
+        string path = _previewPath;
+        Crc32 = Md5 = "…";
+        var (crc, md5) = await Task.Run(() =>
+        {
+            var data = _grf.BrowseData(path);
+            return data is null ? (null, null) : ((string?)GrfHashing.Crc32(data), (string?)GrfHashing.Md5(data));
+        });
+        if (_previewPath == path) { Crc32 = crc ?? "—"; Md5 = md5 ?? "—"; }
+    }
+
+    // ----- Audio (.wav / .mp3): play from a temp file, never the data folder -----
+
+    private async Task PreviewAudioAsync(string path)
+    {
+        ShowAudio = true;          // show the player chrome immediately
+        InfoKind = "Audio";
+        PreviewSubtitle = "Audio · loading…";
+
+        byte[]? data;
+        try { data = await Task.Run(() => _grf.BrowseData(path)); }
+        catch { data = null; }
+
+        if (_previewPath != path) return;                       // user moved on while we were loading
+        if (data is null) { ShowAudio = false; ShowTextPreview("(couldn't load audio)"); return; }
+        PreviewSubtitle = "Audio";
+        AudioData = data;          // the player loads + auto-plays in-memory (codec init off the UI thread)
+    }
+
+    private void CleanupAudio()
+    {
+        ShowAudio = false;
+        AudioData = null;          // null stops + frees the player
+    }
+
+    // ----- Preview background swatch -----
+
+    [RelayCommand]
+    private void SetPreviewBackground(string? spec)
+    {
+        PreviewBackground = spec switch
+        {
+            "black" => Brushes.Black,
+            "white" => Brushes.White,
+            "magenta" => Brushes.Magenta,
+            "checker" or null or "" => null, // null => the checkerboard underlay shows
+            _ => TryParseColor(spec, out var c) ? new SolidColorBrush(c) : PreviewBackground,
+        };
+    }
+
+    private static bool TryParseColor(string hex, out Color color)
+    {
+        try { color = (Color)ColorConverter.ConvertFromString(hex.StartsWith('#') ? hex : "#" + hex)!; return true; }
+        catch { color = default; return false; }
+    }
+
+    // ----- Full-content search (grep): async + cancellable, over text-type entries -----
+
+    [RelayCommand]
+    private async Task Search()
+    {
+        string q = SearchQuery.Trim();
+        if (q.Length == 0) return;
+        _searchCts?.Cancel();
+        _searchCts = new CancellationTokenSource();
+        var ct = _searchCts.Token;
+        SearchResults.Clear();
+        ShowSearch = true;
+        IsSearching = true;
+        int cp = _viewCodePage;
+        try
+        {
+            var hits = await Task.Run(() =>
+            {
+                var list = new List<SearchHit>();
+                foreach (var raw in _grf.BrowseEntries())
+                {
+                    ct.ThrowIfCancellationRequested();
+                    string path = raw.Replace('/', '\\').Trim('\\');
+                    if (path.Length == 0 || !GrfSearch.IsTextExtension(Path.GetExtension(path).ToLowerInvariant())) continue;
+                    var text = _grf.BrowseText(path, cp);
+                    if (text is not null && GrfSearch.ContentMatches(text, q))
+                    {
+                        list.Add(new SearchHit(Display(Path.GetFileName(path)), path));
+                        if (list.Count >= 500) break;
+                    }
+                }
+                return list;
+            }, ct);
+            foreach (var h in hits) SearchResults.Add(h);
+            Status = $"{SearchResults.Count} file(s) contain \"{q}\"" + (SearchResults.Count >= 500 ? " (showing first 500)." : ".");
+        }
+        catch (OperationCanceledException) { Status = "Search cancelled."; }
+        catch (Exception ex) { Status = "Search failed: " + ex.Message; }
+        finally { IsSearching = false; }
+    }
+
+    [RelayCommand] private void OpenSearch() => ShowSearch = true;
+    [RelayCommand] private void CancelSearch() => _searchCts?.Cancel();
+    [RelayCommand] private void CloseSearch() { _searchCts?.Cancel(); ShowSearch = false; SearchResults.Clear(); }
+
+    /// <summary>Opens a search result: navigate to its folder and preview the file.</summary>
+    public void OpenSearchHit(SearchHit? hit)
+    {
+        if (hit is null) return;
+        string parent = hit.Path.Contains('\\') ? hit.Path[..hit.Path.LastIndexOf('\\')] : string.Empty;
+        ShowSearch = false; // reveal the preview behind the results overlay
+        Navigate(parent);
+        Preview(hit.Path);
     }
 
     [RelayCommand] private void ZoomIn() => Zoom = Math.Min(Zoom * 1.5, 16);
     [RelayCommand] private void ZoomOut() => Zoom = Math.Max(Zoom / 1.5, 0.2);
     [RelayCommand] private void ZoomReset() => Zoom = 1.0;
-    [RelayCommand] private void ToggleCheckerboard() => Checkerboard = !Checkerboard;
     [RelayCommand] private void ToggleWrap() => WrapText = !WrapText;
     [RelayCommand] private void Reload() => RefreshFromConfig();
 
