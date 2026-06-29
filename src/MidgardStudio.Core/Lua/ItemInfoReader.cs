@@ -58,7 +58,26 @@ public sealed class ItemInfoReader
         EffectId = t.NameKeys.ContainsKey("EffectID") ? t.GetInt("EffectID") : null,
         PackageId = t.NameKeys.ContainsKey("PackageID") ? t.GetInt("PackageID") : null,
         Server = t.GetString("Server"),
+        ExtraFields = ExtractExtras(t),
     };
+
+    /// <summary>The name-keys this editor models; everything else in an entry is captured into
+    /// <see cref="ItemInfoEntry.ExtraFields"/> and re-emitted verbatim so an edit can't drop it (audit #3).</summary>
+    private static readonly HashSet<string> ModeledKeys = new(StringComparer.Ordinal)
+    {
+        "unidentifiedDisplayName", "unidentifiedResourceName", "unidentifiedDescriptionName",
+        "identifiedDisplayName", "identifiedResourceName", "identifiedDescriptionName",
+        "slotCount", "ClassNum", "costume", "EffectID", "PackageID", "Server",
+    };
+
+    private static Dictionary<string, string> ExtractExtras(LuaTable t)
+    {
+        var extra = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var (key, value) in t.NameKeys)
+            if (!ModeledKeys.Contains(key))
+                extra[key] = LuaValue.Serialize(value);
+        return extra;
+    }
 }
 
 /// <summary>

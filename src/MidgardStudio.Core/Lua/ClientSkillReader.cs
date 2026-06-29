@@ -49,7 +49,24 @@ public static class ClientSkillReader
             s.NeedSkillList = ReadPrereqs(t.GetTable("_NeedSkillList"));
             s.Type = t.GetString("Type");
             s.JobNeedSkillList = ReadJobPrereqs(t.GetTable("NeedSkillList"));
+            s.ExtraInfoFields = ExtractExtras(t, InfoModeledKeys);
         }
+    }
+
+    /// <summary>The SKILL_INFO_LIST name-keys this editor models; anything else is captured verbatim into
+    /// <see cref="ClientSkill.ExtraInfoFields"/> and re-emitted so an edit can't drop it (audit sweep).</summary>
+    private static readonly HashSet<string> InfoModeledKeys = new(StringComparer.Ordinal)
+    {
+        "SkillName", "MaxLv", "AttackRange", "SpAmount", "bSeperateLv", "_NeedSkillList", "Type", "NeedSkillList",
+    };
+
+    private static Dictionary<string, string> ExtractExtras(LuaTable t, HashSet<string> modeled)
+    {
+        var extra = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var (key, value) in t.NameKeys)
+            if (!modeled.Contains(key))
+                extra[key] = LuaValue.Serialize(value);
+        return extra;
     }
 
     public static void ReadDescript(string text, Dictionary<string, ClientSkill> skills)
@@ -111,8 +128,9 @@ public static class ClientSkillReader
         var list = new List<SkillPrereq>();
         if (t is null) return list;
         foreach (var item in t.Array)
-            if (item is LuaTable pair && pair.Array.Count >= 2 && pair.Array[0] is string skid && pair.Array[1] is double lv)
-                list.Add(new SkillPrereq(Strip(skid), (int)lv));
+            if (item is LuaTable pair && pair.Array.Count >= 1 && pair.Array[0] is string skid)
+                // 2-element { SKID.X, N } -> leveled; 1-element { SKID.X } -> level-less (null), round-tripped (audit #6)
+                list.Add(new SkillPrereq(Strip(skid), pair.Array.Count >= 2 && pair.Array[1] is double lv ? (int)lv : null));
         return list;
     }
 

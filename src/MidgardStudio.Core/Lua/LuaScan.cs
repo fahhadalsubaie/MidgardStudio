@@ -73,9 +73,33 @@ public static class LuaScan
     /// </summary>
     public static string SeparatorBeforeNewEntry(string s, int open, int close)
     {
-        int p = close - 1;
-        while (p > open && char.IsWhiteSpace(s[p])) p--;
-        return (p <= open || s[p] is '{' or ',' or ';') ? string.Empty : ",";
+        int end = LastValueEnd(s, open, close);
+        return (end <= open || s[end - 1] is '{' or ',' or ';') ? string.Empty : ",";
+    }
+
+    /// <summary>The index just past the last real value character inside the table (open..close), skipping
+    /// trailing whitespace AND trailing comments. A separator/new entry goes here so it lands after the last
+    /// value, not after a trailing <c>--</c> comment line (which used to get a stray comma appended — audit #16).
+    /// Forward scan reusing <see cref="SkipString"/> / <see cref="SkipComment"/> / <see cref="FindMatchingBrace"/>.</summary>
+    public static int LastValueEnd(string s, int open, int close)
+    {
+        int last = open; // empty table -> right after '{'
+        int i = open + 1;
+        while (i < close)
+        {
+            char c = s[i];
+            if (char.IsWhiteSpace(c)) { i++; continue; }
+            if (c == '-' && i + 1 < close && s[i + 1] == '-') { i = SkipComment(s, i); continue; }
+            if (c == '"' || c == '\'') { i = SkipString(s, i); last = i + 1; i++; continue; }
+            if (c == '{')
+            {
+                int m = FindMatchingBrace(s, i);
+                if (m < 0 || m >= close) { last = close; break; }
+                last = m + 1; i = m + 1; continue;
+            }
+            last = i + 1; i++;
+        }
+        return last;
     }
 
     /// <summary>Given the index of a quote char, returns the index of the closing quote.</summary>

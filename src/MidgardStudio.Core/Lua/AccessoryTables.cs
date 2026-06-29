@@ -39,9 +39,34 @@ public static class AccessoryTables
     public static string AppendConstant(string text, string tableName, string constantName, int id) =>
         InsertBeforeTableClose(text, tableName, $"\t{constantName} = {id},");
 
-    /// <summary>Appends a <c>[ACCESSORY_IDs.NAME] = "sprite",</c> mapping inside the named table.</summary>
+    /// <summary>Appends a <c>[ACCESSORY_IDs.NAME] = "sprite",</c> mapping inside the named table. The sprite is
+    /// user-typed free text, so it's escaped through the shared quoter (symmetric with the reader — audit sweep).</summary>
     public static string AppendName(string text, string tableName, string idsTableName, string constantName, string sprite) =>
-        InsertBeforeTableClose(text, tableName, $"\t[{idsTableName}.{constantName}] = \"{sprite}\",");
+        InsertBeforeTableClose(text, tableName, $"\t[{idsTableName}.{constantName}] = {LuaString.Quote(sprite)},");
+
+    /// <summary>Upserts a <c>[idsTable.NAME] = "sprite"</c> mapping: replaces the string value in place if
+    /// the key already exists in the table, else appends. Repeated <see cref="AppendName"/> for the same
+    /// key grew a stale duplicate line on every re-register (audit #7); this updates the one line instead,
+    /// leaving every other byte (comments, other entries, trailing comma) untouched.</summary>
+    public static string SetOrAppendName(string text, string tableName, string idsTableName, string constantName, string sprite)
+    {
+        int open = LuaScan.FindTableOpen(text, tableName);
+        int close = open < 0 ? -1 : LuaScan.FindMatchingBrace(text, open);
+        if (open < 0 || close < 0)
+            return AppendName(text, tableName, idsTableName, constantName, sprite); // fail-loud via AppendName
+
+        string keyToken = $"[{idsTableName}.{constantName}]";
+        int keyAt = text.IndexOf(keyToken, open, close - open, StringComparison.Ordinal);
+        if (keyAt < 0) return AppendName(text, tableName, idsTableName, constantName, sprite); // new key
+
+        int eq = text.IndexOf('=', keyAt + keyToken.Length);
+        int q1 = eq < 0 || eq > close ? -1 : text.IndexOf('"', eq + 1);
+        int q2 = q1 < 0 || q1 > close ? -1 : text.IndexOf('"', q1 + 1);
+        if (q2 < 0 || q2 > close) // value isn't a simple quoted string — don't risk a wrong splice, append
+            return AppendName(text, tableName, idsTableName, constantName, sprite);
+
+        return text[..q1] + LuaString.Quote(sprite) + text[(q2 + 1)..]; // replace the whole quoted token, escaped (audit sweep)
+    }
 
     private static string InsertBeforeTableClose(string text, string tableName, string line)
     {
@@ -64,11 +89,11 @@ public static class AccessoryTables
                 "The file may have a mismatched brace — open it and check, then save again.");
 
         // Add a field separator if the last entry lacks one — see LuaScan.SeparatorBeforeNewEntry (the rule
-        // that bit v1.0.1). Place it right after the last value, then the new line just before the close brace.
+        // that bit v1.0.1). Place it right after the last real value (NOT after a trailing comment — audit #16),
+        // then the new line just before the close brace, leaving any trailing comment/whitespace untouched.
         string sep = LuaScan.SeparatorBeforeNewEntry(text, open, close);
-        int p = close - 1;
-        while (p > open && char.IsWhiteSpace(text[p])) p--;
+        int p = LuaScan.LastValueEnd(text, open, close); // index just past the last value (comment-aware)
         string nl = text.Contains("\r\n") ? "\r\n" : "\n";
-        return text[..(p + 1)] + sep + text[(p + 1)..close] + line + nl + text[close..];
+        return text[..p] + sep + text[p..close] + line + nl + text[close..];
     }
 }

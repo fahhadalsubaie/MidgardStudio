@@ -361,4 +361,92 @@ public class ClientSkillLuaTests
             Assert.Equal(once, ClientSkillWriter.FormatInfo(round[s.Constant])); // stable under re-parse
         }
     }
+
+    [Fact]
+    public void Info_preserves_unmodeled_skill_fields() // audit sweep (ClientSkill twin of #3)
+    {
+        string info =
+            "SKILL_INFO_LIST = {\n" +
+            "\t[SKID.SM_BASH] = {\n" +
+            "\t\t\"SM_BASH\",\n" +
+            "\t\tSkillName = \"Bash\",\n" +
+            "\t\tMaxLv = 10,\n" +
+            "\t\tCustomFlag = true,\n" +   // a field the editor doesn't model
+            "\t\tCustomCost = 42\n" +      // ditto
+            "\t}\n" +
+            "}\n";
+        var skills = new Dictionary<string, ClientSkill>();
+        ClientSkillReader.ReadInfo(info, skills);
+        var s = skills["SM_BASH"];
+
+        Assert.Equal("true", s.ExtraInfoFields["CustomFlag"]);
+        Assert.Equal("42", s.ExtraInfoFields["CustomCost"]);
+
+        string written = ClientSkillWriter.FormatInfo(s);
+        Assert.Contains("CustomFlag = true", written);   // unmodeled fields survive re-emit
+        Assert.Contains("CustomCost = 42", written);
+    }
+
+    [Fact]
+    public void Level_less_prereqs_round_trip() // audit #6
+    {
+        string info =
+            "SKILL_INFO_LIST = {\n" +
+            "\t[SKID.WS_CARTBOOST] = {\n" +
+            "\t\t\"WS_CARTBOOST\",\n" +
+            "\t\tSkillName = \"Cart Boost\",\n" +
+            "\t\tMaxLv = 1,\n" +
+            "\t\t_NeedSkillList = { { SKID.MC_PUSHCART, 5 }, { SKID.MC_CARTREVOLUTION }, { SKID.MC_CHANGECART } }\n" +
+            "\t}\n" +
+            "}\n";
+        var skills = new Dictionary<string, ClientSkill>();
+        ClientSkillReader.ReadInfo(info, skills);
+        var s = skills["WS_CARTBOOST"];
+
+        Assert.Equal(3, s.NeedSkillList.Count);
+        Assert.Equal(5, s.NeedSkillList[0].Level);
+        Assert.Null(s.NeedSkillList[1].Level); // level-less prereqs preserved (were dropped before)
+        Assert.Null(s.NeedSkillList[2].Level);
+
+        string written = ClientSkillWriter.FormatInfo(s);
+        Assert.Contains("{ SKID.MC_PUSHCART, 5 }", written);
+        Assert.Contains("{ SKID.MC_CARTREVOLUTION }", written);    // re-emitted without a level
+        Assert.Contains("{ SKID.MC_CHANGECART }", written);
+        Assert.DoesNotContain("MC_CARTREVOLUTION, ", written);     // no spurious level added
+    }
+
+    [Fact]
+    public void LuaString_Quote_reescapes_control_chars_and_backslash() // audit #2 / #12
+    {
+        Assert.Equal("\"a\\nb\"", LuaString.Quote("a\nb"));    // real newline -> \n (never a raw line break)
+        Assert.Equal("\"a\\tb\"", LuaString.Quote("a\tb"));    // real tab -> \t
+        Assert.Equal("\"C:\\\\x\"", LuaString.Quote("C:\\x")); // backslash -> \\
+        Assert.Equal("\"q\\\"q\"", LuaString.Quote("q\"q"));   // quote -> \"
+    }
+
+    [Fact]
+    public void Descript_escapes_round_trip_through_reader_and_writer() // audit #2 / #5
+    {
+        string src =
+            "SKILL_DESCRIPT = {\n" +
+            "\t[SKID.X] = {\n" +
+            "\t\t\"newline\\n and tab\\t here\",\n" +     // \n and \t escapes
+            "\t\t\"path C:\\Program Files\\Gravity\"\n" + // single backslashes (unknown escapes)
+            "\t}\n" +
+            "}\n";
+        var skills = new Dictionary<string, ClientSkill>();
+        ClientSkillReader.ReadDescript(src, skills);
+        var s = skills["X"];
+
+        // reader: \n/\t decode to real control chars; backslashes are preserved (were silently dropped)
+        Assert.Contains("\n", s.Description[0]);
+        Assert.Contains("\t", s.Description[0]);
+        Assert.Contains(@"C:\Program Files\Gravity", s.Description[1]);
+
+        // writer: control chars re-escaped (no raw newline inside the literal); backslashes doubled
+        string written = ClientSkillContent.Descript(s)!;
+        Assert.Contains(@"\n", written);
+        Assert.Contains(@"\t", written);
+        Assert.Contains(@"C:\\Program Files\\Gravity", written);
+    }
 }

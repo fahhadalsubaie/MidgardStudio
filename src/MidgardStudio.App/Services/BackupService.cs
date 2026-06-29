@@ -76,6 +76,11 @@ public sealed class BackupService
 
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
 
+    /// <summary>The highest snapshot <c>Manifest.Version</c> this build can fully restore. CreateBackup writes
+    /// version 2; bump this whenever a new snapshot group is added so an OLDER build refuses a forward-
+    /// incompatible snapshot instead of silently restoring it only in part (audit #19).</summary>
+    private const int KnownMaxSnapshotVersion = 2;
+
     public BackupService(WorkspaceSession session, AppSettingsService settings)
     {
         _session = session;
@@ -405,6 +410,13 @@ public sealed class BackupService
         if (!Directory.Exists(entry.FolderPath))
             throw new InvalidDataException("This backup's folder no longer exists on disk, so nothing was restored.");
 
+        // A snapshot from a NEWER build may carry groups this version can't restore; refuse rather than
+        // restore it partially while reporting success (audit #19).
+        if (entry.Manifest.Version > KnownMaxSnapshotVersion)
+            throw new InvalidDataException(
+                $"This backup was created by a newer version of Midgard Studio (snapshot v{entry.Manifest.Version}); " +
+                "update the app to restore it safely — nothing was changed.");
+
         string importSrc = Path.Combine(entry.FolderPath, "import");
         // New snapshots store the itemInfo file under "SystemEN/" (its default home); older ones used "client/".
         string clientSrc = Path.Combine(entry.FolderPath, "SystemEN");
@@ -476,7 +488,7 @@ public sealed class BackupService
                 {
                     string target = Path.Combine(ImportDir, Path.GetRelativePath(importSrc, f));
                     Directory.CreateDirectory(Path.GetDirectoryName(target)!);
-                    File.Copy(f, target, true);
+                    MidgardStudio.Core.IO.FileTransaction.AtomicCopy(f, target); // atomic rollback restore (audit #17)
                 }
 
             string clientSrc = Path.Combine(safety.FolderPath, "SystemEN");
@@ -488,7 +500,7 @@ public sealed class BackupService
                 if (File.Exists(named))
                 {
                     Directory.CreateDirectory(Path.GetDirectoryName(writeTarget)!);
-                    File.Copy(named, writeTarget, true);
+                    MidgardStudio.Core.IO.FileTransaction.AtomicCopy(named, writeTarget); // atomic rollback restore (audit #17)
                 }
             }
 
@@ -499,7 +511,7 @@ public sealed class BackupService
                 {
                     string target = Path.Combine(liveDir, Path.GetFileName(f));
                     Directory.CreateDirectory(Path.GetDirectoryName(target)!);
-                    File.Copy(f, target, true);
+                    MidgardStudio.Core.IO.FileTransaction.AtomicCopy(f, target); // atomic rollback restore (audit #17)
                 }
             }
             RestoreSet("skillinfoz", SkillInfoDir);

@@ -1,7 +1,9 @@
 namespace MidgardStudio.Core.Lua;
 
-/// <summary>One prerequisite skill: a SKID constant (without the <c>SKID.</c> prefix) + required level.</summary>
-public sealed record SkillPrereq(string Skid, int Level);
+/// <summary>One prerequisite skill: a SKID constant (without the <c>SKID.</c> prefix) + required level.
+/// <c>Level</c> is null for the level-less form <c>{ SKID.X }</c> some real entries use (audit #6) — it
+/// must round-trip, or an unrelated edit would silently add a level and change the client's requirements.</summary>
+public sealed record SkillPrereq(string Skid, int? Level);
 
 /// <summary>Job-specific prerequisite block: a JOBID constant (without the <c>JOBID.</c> prefix) + its prereqs.</summary>
 public sealed class JobPrereqs
@@ -41,6 +43,11 @@ public sealed class ClientSkill
     public string? Type { get; set; }                                  // e.g. "Quest" (preserved)
     public List<JobPrereqs> JobNeedSkillList { get; set; } = new();    // NeedSkillList[JOBID.x] (preserved)
 
+    /// <summary>Already-Lua-serialized values of any SKILL_INFO_LIST name-keys this editor doesn't model, in
+    /// source order — captured on read, re-emitted on write so an edit can't drop an unknown field (audit sweep,
+    /// the skill twin of <c>ItemInfoEntry.ExtraFields</c>).</summary>
+    public Dictionary<string, string> ExtraInfoFields { get; set; } = new(System.StringComparer.Ordinal);
+
     // --- SKILL_DESCRIPT ---
     public bool HasDescript { get; set; }
     public List<string> Description { get; set; } = new();
@@ -70,6 +77,7 @@ public sealed class ClientSkill
         NeedSkillList = NeedSkillList.Select(p => p with { }).ToList(),
         Type = Type,
         JobNeedSkillList = JobNeedSkillList.Select(j => j.Clone()).ToList(),
+        ExtraInfoFields = new Dictionary<string, string>(ExtraInfoFields, System.StringComparer.Ordinal),
         HasDescript = HasDescript,
         Description = new List<string>(Description),
         HasDelay = HasDelay,

@@ -36,4 +36,31 @@ public class CustomItemInfoSpliceTests
         Assert.Contains("Crimson Potion", result);
         Assert.DoesNotContain("Red Potion", result);
     }
+
+    [Fact]
+    public void Splice_preserves_unmodeled_entry_fields() // audit #3
+    {
+        string original =
+            "tbl_custom = {\n" +
+            "\t[40000] = {\n" +
+            "\t\tidentifiedDisplayName = \"Gizmo\",\n" +
+            "\t\tslotCount = 0,\n" +
+            "\t\tClassNum = 0,\n" +
+            "\t\tbindOnEquip = true,\n" +   // a field the editor does not model
+            "\t\tmagicAttribute = 7\n" +    // ditto
+            "\t},\n" +
+            "}\n";
+
+        var file = new ItemInfoReader().ReadCustomFile(original);
+        var entry = file.Custom[40000];
+        Assert.Equal("true", entry.ExtraFields["bindOnEquip"]);
+        Assert.Equal("7", entry.ExtraFields["magicAttribute"]);
+
+        entry.IdentifiedDisplayName = "Gizmo Mk2"; // edit a MODELED field, then re-splice
+        string result = new UnifiedItemInfoWriter().Splice(original, new[] { entry }, "tbl_custom");
+
+        Assert.Contains("Gizmo Mk2", result);
+        Assert.Contains("bindOnEquip = true", result);  // unmodeled fields survive the edit (were dropped before)
+        Assert.Contains("magicAttribute = 7", result);
+    }
 }

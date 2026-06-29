@@ -102,7 +102,9 @@ public sealed class MobSpriteService : IDirtySource
         {
             if (have.Add(p.ConstantName))
                 idText = AccessoryTables.AppendConstant(idText, "jobtbl", p.ConstantName, p.Id);
-            jobText = AccessoryTables.AppendName(jobText, "JobNameTable", "jobtbl", p.ConstantName, p.Sprite);
+            // Upsert (not append): a re-registered mob already in JobNameTable updates its sprite line in
+            // place instead of appending a duplicate key that accumulates on every save (audit #7).
+            jobText = AccessoryTables.SetOrAppendName(jobText, "JobNameTable", "jobtbl", p.ConstantName, p.Sprite);
         }
         var tx = new FileTransaction(Path.Combine(Paths.LuaFilesRoot, ".midgard-backup"));
         tx.Stage(NpcIdentityPath, _codec.EncodeText(idText));

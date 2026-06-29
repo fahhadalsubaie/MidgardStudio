@@ -67,11 +67,13 @@ public sealed class ItemInfoWriter
         if (e.EffectId.HasValue) sb.Append($",\n\t\tEffectID = {e.EffectId.Value}");
         if (e.PackageId.HasValue) sb.Append($",\n\t\tPackageID = {e.PackageId.Value}");
         if (e.Server is not null) sb.Append($",\n\t\tServer = {Quote(e.Server)}");
+        foreach (var (key, value) in e.ExtraFields) // unmodeled fields, re-emitted so an edit can't drop them (audit #3)
+            sb.Append($",\n\t\t{key} = {value}");
         sb.Append("\n\t},\n");
         return sb.ToString();
     }
 
-    private static string Quote(string s) => "\"" + s.Replace("\\", "\\\\").Replace("\"", "\\\"") + "\"";
+    private static string Quote(string s) => LuaString.Quote(s); // shared, symmetric with LuaTableParser (audit #12)
 
     private static string Array(List<string> lines)
     {

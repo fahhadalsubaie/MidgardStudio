@@ -63,8 +63,16 @@ public sealed class YamlDbWriter
         string? existing = null;
         if (File.Exists(path))
         {
+            // The file EXISTS, so it has content (banner, comments, a Footer chaining sub-DBs) that a clean
+            // regenerate would drop. If we can't read it, abort the save rather than silently overwrite it
+            // with a comment-/Footer-less rewrite (audit #9). When File.Exists is false there's nothing to lose.
             try { existing = File.ReadAllText(path, new UTF8Encoding(false)); }
-            catch { existing = null; } // unreadable -> fall back to a clean regenerate
+            catch (Exception ex)
+            {
+                throw new IOException(
+                    $"Couldn't read the existing '{Path.GetFileName(path)}' to merge your change safely, so nothing " +
+                    "was written and the file is untouched. It may be open/locked in another program — close it and save again.", ex);
+            }
         }
         var text = YamlBodyMerge.Merge(existing, canonical);
         var bytes = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false).GetBytes(text); // rAthena YAML is UTF-8, no BOM
@@ -242,7 +250,8 @@ public sealed class YamlDbWriter
                 Scalar(emitter, string.Empty);
                 break;
             case string s:
-                Scalar(emitter, s);
+                if (s.Contains('\n')) Literal(emitter, s); // keep an unknown multi-line/script field as a | block (audit #10)
+                else Scalar(emitter, s);
                 break;
             case IDictionary<string, object?> map:
                 emitter.Emit(new MappingStart());

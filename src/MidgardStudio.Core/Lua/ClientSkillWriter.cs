@@ -26,6 +26,8 @@ public static class ClientSkillWriter
         if (s.NeedSkillList.Count > 0) sb.Append($",\n\t\t_NeedSkillList = {Prereqs(s.NeedSkillList, 2)}");
         if (s.Type is not null) sb.Append($",\n\t\tType = {Quote(s.Type)}");
         if (s.JobNeedSkillList.Count > 0) sb.Append($",\n\t\tNeedSkillList = {JobPrereqList(s.JobNeedSkillList)}");
+        foreach (var (k, v) in s.ExtraInfoFields) // unmodeled info keys, re-emitted so an edit can't drop them (audit sweep)
+            sb.Append($",\n\t\t{k} = {v}");
         sb.Append("\n\t},\n");
         return sb.ToString();
     }
@@ -63,11 +65,12 @@ public static class ClientSkillWriter
         return sb.ToString();
     }
 
-    private static string Quote(string s) => "\"" + s.Replace("\\", "\\\\").Replace("\"", "\\\"") + "\"";
+    private static string Quote(string s) => LuaString.Quote(s); // shared, symmetric with LuaTableParser (audit #2)
 
     private static string Bool(bool b) => b ? "true" : "false";
 
-    private static string IntArray(List<int> values) => "{ " + string.Join(", ", values) + " }";
+    private static string IntArray(List<int> values) => // empty -> "{}" (matches real files; was "{  }") (audit #13)
+        values.Count == 0 ? "{}" : "{ " + string.Join(", ", values) + " }";
 
     private static string Prereqs(List<SkillPrereq> reqs, int indentTabs)
     {
@@ -76,7 +79,9 @@ public static class ClientSkillWriter
         var sb = new StringBuilder("{\n");
         for (int i = 0; i < reqs.Count; i++)
         {
-            sb.Append(inner).Append($"{{ SKID.{reqs[i].Skid}, {reqs[i].Level} }}");
+            sb.Append(inner).Append(reqs[i].Level is int lvl
+                ? $"{{ SKID.{reqs[i].Skid}, {lvl} }}"
+                : $"{{ SKID.{reqs[i].Skid} }}"); // level-less form round-trips (audit #6)
             sb.Append(i < reqs.Count - 1 ? ",\n" : "\n");
         }
         sb.Append(close).Append('}');

@@ -428,6 +428,10 @@ public partial class ShellViewModel : ObservableObject
                     yes: "Discard & switch")) return;
         }
 
+        // Pre-flight: warn (and let the user back out) if this profile's files are an old/unsupported format
+        // the writers can't safely round-trip — before binding them and risking a corrupting save (audit Phase 3).
+        if (persist && !ConfirmCompatibility(cfg)) return;
+
         if (persist)
         {
             cfg.LastOpenedUtc = DateTime.UtcNow;
@@ -449,6 +453,26 @@ public partial class ShellViewModel : ObservableObject
         ShowWizard = false;
         SelectedSection = Sections.Count > 0 ? Sections[0] : null;
         RefreshProfiles();
+    }
+
+    /// <summary>Runs the read-only compatibility pre-check on a profile's files and, if anything looks like a
+    /// format we can't safely round-trip, asks the user whether to load it anyway. Returns false to cancel.</summary>
+    private bool ConfirmCompatibility(WorkspaceConfig cfg)
+    {
+        var findings = ProfileCompatibilityCheck.Run(cfg.Paths, _schemas.All.ToList(), cfg.DefaultMode, cfg.ClientCodepage);
+        if (findings.Count == 0) return true;
+
+        bool hasBlocker = findings.Any(f => f.Severity == CompatSeverity.Blocker);
+        var sb = new System.Text.StringBuilder();
+        sb.Append(hasBlocker
+            ? "Some of this profile's files look like a different or unsupported format. Loading is fine, but SAVING them could fail or write the wrong data:\n\n"
+            : "Some of this profile's files may not round-trip perfectly when saved:\n\n");
+        foreach (var f in findings.Take(12))
+            sb.Append(f.Severity == CompatSeverity.Blocker ? "  ⛔ " : "  ⚠ ").Append(f.Message).Append('\n');
+        if (findings.Count > 12) sb.Append($"  …and {findings.Count - 12} more.\n");
+        sb.Append("\nLoad this profile anyway?");
+
+        return Views.ConfirmDialog.Show("Profile compatibility", sb.ToString(), yes: "Load anyway");
     }
 
     [RelayCommand]

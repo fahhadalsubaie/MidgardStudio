@@ -166,7 +166,18 @@ public sealed class LuaTableParser
             {
                 if (Eof) break; // trailing backslash with no escaped char — don't read past EOF
                 char e = Next();
-                sb.Append(e switch { 'n' => '\n', 't' => '\t', 'r' => '\r', _ => e });
+                // Decode the escapes we understand; for ANY other escape keep BOTH chars verbatim so a
+                // Windows path like "C:\Program Files\Gravity" round-trips (the writer re-escapes the
+                // backslash). Dropping the backslash here silently corrupted such strings (audit #5).
+                switch (e)
+                {
+                    case 'n': sb.Append('\n'); break;
+                    case 't': sb.Append('\t'); break;
+                    case 'r': sb.Append('\r'); break;
+                    case '\\': sb.Append('\\'); break; // \\ -> one backslash
+                    case '"': sb.Append('"'); break;   // \" -> quote
+                    default: sb.Append('\\'); sb.Append(e); break; // unknown escape preserved verbatim
+                }
             }
             else if (c == quote)
             {

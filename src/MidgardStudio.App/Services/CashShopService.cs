@@ -76,8 +76,26 @@ public sealed class CashShopService : IDirtySource
     {
         if (!IsDirty || _data is null) return;
         string dir = Path.GetDirectoryName(ImportPath)!;
+        string canonical = CashShopYaml.Write(_data);
+
+        // Preserve any banner/comments/Footer the user hand-added to import/item_cash.yml — the same
+        // comment-preserving merge the other import writers use (audit sweep). Abort on an unreadable
+        // existing file rather than overwrite it with a comment-less regenerate.
+        string? existing = null;
+        if (File.Exists(ImportPath))
+        {
+            try { existing = File.ReadAllText(ImportPath, new UTF8Encoding(false)); }
+            catch (Exception ex)
+            {
+                throw new IOException(
+                    "Couldn't read the existing item_cash.yml to merge your change safely, so nothing was written " +
+                    "and the file is untouched. It may be open in another program — close it and save again.", ex);
+            }
+        }
+        string text = MidgardStudio.Core.Serialization.YamlBodyMerge.Merge(existing, canonical);
+
         var tx = new FileTransaction(Path.Combine(dir, ".midgard-backup"));
-        tx.Stage(ImportPath, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false).GetBytes(CashShopYaml.Write(_data)));
+        tx.Stage(ImportPath, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false).GetBytes(text));
         tx.Commit();
         _signatureCache = null;
         _savedSignature = _data.Signature(); // re-baseline: on-disk now matches memory

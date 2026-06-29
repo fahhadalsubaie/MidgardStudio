@@ -96,6 +96,56 @@ public class YamlBodyMergeTests
         Assert.Equal(Canonical, YamlBodyMerge.Merge("just some text with no header", Canonical));
     }
 
+    [Fact]
+    public void Preserves_comments_inside_the_body_between_entries() // audit #1 (status.yml Kyoshio notes)
+    {
+        string original = """
+            Header:
+              Type: STATUS_DB
+              Version: 4
+            Body:
+              # VIP membership cosmetic icon (Kyoshio)
+              - Status: Vipstate
+                Icon: EFST_VIP
+              # Auto-Battle ON cosmetic icon (Kyoshio)
+              - Status: Autoattack_Icon
+                Icon: EFST_AUTO
+            """;
+
+        // a regenerated Body that edited Vipstate's Icon (the entry set is unchanged)
+        string canonical = """
+            Header:
+              Type: STATUS_DB
+              Version: 4
+            Body:
+              - Status: Vipstate
+                Icon: EFST_VIP_NEW
+              - Status: Autoattack_Icon
+                Icon: EFST_AUTO
+            """;
+
+        string merged = YamlBodyMerge.Merge(original, canonical).Replace("\r\n", "\n");
+
+        Assert.Contains("Icon: EFST_VIP_NEW", merged);                       // the edit landed
+        // both hand comments survive, each still above its own entry
+        Assert.Contains("# VIP membership cosmetic icon (Kyoshio)\n  - Status: Vipstate", merged);
+        Assert.Contains("# Auto-Battle ON cosmetic icon (Kyoshio)\n  - Status: Autoattack_Icon", merged);
+    }
+
+    [Fact]
+    public void Refuses_to_merge_when_the_file_declares_a_different_db_type() // audit #8
+    {
+        string mobDbFile = "Header:\n  Type: MOB_DB\n  Version: 5\nBody:\n  - Id: 1002\n    AegisName: PORING\n";
+        string itemCanonical = "Header:\n  Type: ITEM_DB\n  Version: 3\nBody:\n  - Id: 501\n    AegisName: Red_Potion\n";
+
+        // Saving ITEM_DB data over a MOB_DB file would make it self-inconsistent — must refuse, not overwrite.
+        Assert.Throws<System.IO.InvalidDataException>(() => YamlBodyMerge.Merge(mobDbFile, itemCanonical));
+
+        // Matching types (and headerless imports) still merge fine.
+        Assert.Contains("- Id: 501", YamlBodyMerge.Merge(
+            "Header:\n  Type: ITEM_DB\n  Version: 3\nBody:\n  - Id: 909\n    AegisName: Jellopy\n", itemCanonical).Replace("\r\n", "\n"));
+    }
+
     private static int Count(string haystack, string needle)
     {
         int n = 0, i = 0;

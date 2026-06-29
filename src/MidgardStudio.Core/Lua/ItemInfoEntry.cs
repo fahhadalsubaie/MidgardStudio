@@ -19,6 +19,11 @@ public sealed class ItemInfoEntry
     public int? PackageId { get; set; }
     public string? Server { get; set; }
 
+    /// <summary>Already-Lua-serialized values of any per-entry keys this editor does not model, in source
+    /// order. Captured on read and re-emitted on write so editing an item never drops an unknown field
+    /// (audit #3). Key -> serialized value text (e.g. <c>"bindOnEquip" -> "true"</c>).</summary>
+    public Dictionary<string, string> ExtraFields { get; set; } = new(System.StringComparer.Ordinal);
+
     /// <summary>A deep copy (so a base entry can be edited without mutating the cached base table).</summary>
     public ItemInfoEntry Clone() => new()
     {
@@ -35,6 +40,7 @@ public sealed class ItemInfoEntry
         EffectId = EffectId,
         PackageId = PackageId,
         Server = Server,
+        ExtraFields = new Dictionary<string, string>(ExtraFields, System.StringComparer.Ordinal),
     };
 }
 

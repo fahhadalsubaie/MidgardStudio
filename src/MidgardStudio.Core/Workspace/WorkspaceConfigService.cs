@@ -162,15 +162,23 @@ public sealed class WorkspaceConfigService : IWorkspaceConfigService
         // Atomic write: a crash mid-write must never truncate the file that holds the user's server paths.
         var json = JsonSerializer.Serialize(store, JsonOptions);
         var tmp = ProfilesPath + ".tmp";
-        File.WriteAllText(tmp, json);
-        if (File.Exists(ProfilesPath))
+        try
         {
-            try { File.Copy(ProfilesPath, ProfilesPath + ".bak", overwrite: true); } catch { /* best effort */ }
-            File.Replace(tmp, ProfilesPath, null);
+            File.WriteAllText(tmp, json);
+            if (File.Exists(ProfilesPath))
+            {
+                try { File.Copy(ProfilesPath, ProfilesPath + ".bak", overwrite: true); } catch { /* best effort */ }
+                File.Replace(tmp, ProfilesPath, null);
+            }
+            else
+            {
+                File.Move(tmp, ProfilesPath);
+            }
         }
-        else
+        catch
         {
-            File.Move(tmp, ProfilesPath);
+            try { if (File.Exists(tmp)) File.Delete(tmp); } catch { /* best effort */ } // don't orphan the .tmp (audit #18)
+            throw;
         }
     }
 

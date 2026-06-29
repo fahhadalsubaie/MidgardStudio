@@ -64,4 +64,69 @@ public class AccessoryTablesTests
         Assert.Throws<InvalidDataException>(() =>
             AccessoryTables.AppendConstant("SKID = {\n\tAT_FOO = 1,\n", "SKID", "CUSTOM_1", 6608));
     }
+
+    [Fact]
+    public void SetOrAppendName_updates_in_place_and_never_duplicates() // audit #7
+    {
+        string text =
+            "JobNameTable = {\n" +
+            "\t[jobtbl.JT_PORING] = \"Poring\",\n" +
+            "\t[jobtbl.JT_LUNATIC] = \"Lunatic\",\n" +
+            "}\n";
+
+        // Re-registering an existing key replaces the value in place — no duplicate line.
+        string updated = AccessoryTables.SetOrAppendName(text, "JobNameTable", "jobtbl", "JT_PORING", "Poring_Custom");
+        var names = AccessoryTables.ReadNames(updated, "JobNameTable");
+        Assert.Equal("Poring_Custom", names["JT_PORING"]);
+        Assert.Equal("Lunatic", names["JT_LUNATIC"]);                 // sibling untouched
+        Assert.Equal(1, CountOccurrences(updated, "[jobtbl.JT_PORING]")); // exactly ONE — no duplicate appended
+    }
+
+    [Fact]
+    public void Append_does_not_put_a_comma_on_a_trailing_comment() // audit #16
+    {
+        string text =
+            "ACCESSORY_IDs = {\n" +
+            "\tACCESSORY_FOO = 100,\n" +
+            "\t-- end of custom accessories\n" +
+            "}\n";
+        string result = AccessoryTables.AppendConstant(text, "ACCESSORY_IDs", "ACCESSORY_BAR", 101);
+
+        Assert.Contains("-- end of custom accessories\n", result); // comment line intact
+        Assert.DoesNotContain("accessories,", result);             // no stray comma appended to the comment
+        var consts = AccessoryTables.ReadConstants(result);
+        Assert.Equal(101, consts["ACCESSORY_BAR"]);                // new entry inserted + parseable
+        Assert.Equal(100, consts["ACCESSORY_FOO"]);
+    }
+
+    [Fact]
+    public void EncodeText_preserves_the_files_line_endings() // audit #11 / #14
+    {
+        var codec = new LuaFileCodec(1252);
+        Assert.DoesNotContain((byte)'\r', codec.EncodeText("a\nb\nc\n")); // LF-only stays LF
+        Assert.Contains((byte)'\r', codec.EncodeText("a\r\nb\r\n"));      // CRLF stays CRLF
+
+        // End-to-end: an LF-only sprite table, appended to and encoded, stays LF — a one-line append
+        // must not rewrite every line to CRLF (the reported whole-file +N-bytes diff churn).
+        string lfTable = "AccNameTable = {\n\t[ACCESSORY_IDs.AC_A] = \"a\",\n}\n";
+        string appended = AccessoryTables.AppendName(lfTable, "AccNameTable", "ACCESSORY_IDs", "AC_B", "b");
+        byte[] encoded = codec.EncodeText(appended);
+        Assert.DoesNotContain((byte)'\r', encoded);                      // no CR inserted anywhere
+        Assert.Equal(appended.Length, encoded.Length);                  // byte-for-byte (1252 single-byte, LF preserved)
+    }
+
+    [Fact]
+    public void AppendName_escapes_the_sprite_value() // audit sweep — sprite is user free-text
+    {
+        string r = AccessoryTables.AppendName("AccNameTable = {\n}\n", "AccNameTable", "ACCESSORY_IDs", "AC_X", "a\"b\\c");
+        // the value is escaped on write and decodes back to the original on read (symmetric, not corrupt)
+        Assert.Equal("a\"b\\c", AccessoryTables.ReadNames(r, "AccNameTable")["AC_X"]);
+    }
+
+    private static int CountOccurrences(string haystack, string needle)
+    {
+        int n = 0, i = 0;
+        while ((i = haystack.IndexOf(needle, i, System.StringComparison.Ordinal)) >= 0) { n++; i += needle.Length; }
+        return n;
+    }
 }

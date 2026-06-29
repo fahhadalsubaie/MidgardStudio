@@ -40,7 +40,8 @@ public sealed partial class ClientSkillEditorViewModel : ObservableObject
         SingleCdField = MakeField("Skill cooldown", "this skill's cooldown, ms", () => _skill.SinglePostDelay, v => _skill.SinglePostDelay = v, isDelay: true);
 
         foreach (var p in _skill.NeedSkillList)
-            Prereqs.Add(new PrereqRowViewModel(p.Skid, ResolveName(p.Skid), p.Level, CommitPrereqs, RemovePrereqRow));
+            // a level-less prereq (null) shows as 0 in the editor; committing a prereq edit forces level >= 1
+            Prereqs.Add(new PrereqRowViewModel(p.Skid, ResolveName(p.Skid), p.Level ?? 0, CommitPrereqs, RemovePrereqRow));
 
         _ready = true;
     }

@@ -64,7 +64,7 @@ public sealed class FileTransaction
                     else
                     {
                         var backup = BackupPathFor(path);
-                        if (File.Exists(backup)) File.Copy(backup, path, overwrite: true);
+                        if (File.Exists(backup)) AtomicCopy(backup, path); // atomic so a crash mid-rollback can't truncate (audit #17)
                     }
                 }
                 catch { /* best effort — restore the rest */ }
@@ -77,6 +77,21 @@ public sealed class FileTransaction
     private static void TryDelete(string path)
     {
         try { if (File.Exists(path)) File.Delete(path); } catch { /* best effort */ }
+    }
+
+    /// <summary>Copies <paramref name="src"/> over <paramref name="dest"/> atomically (temp + Replace/Move) so a
+    /// crash mid-copy can't leave <paramref name="dest"/> truncated. Shared by the rollback path and
+    /// <c>BackupService.TryRollback</c> (audit #17).</summary>
+    public static void AtomicCopy(string src, string dest)
+    {
+        var tmp = dest + ".roll.tmp";
+        try
+        {
+            File.Copy(src, tmp, overwrite: true);
+            if (File.Exists(dest)) File.Replace(tmp, dest, null);
+            else File.Move(tmp, dest);
+        }
+        finally { TryDelete(tmp); }
     }
 
     // Backup name is unique per full path, so two staged files that share a leaf name (different folders)
