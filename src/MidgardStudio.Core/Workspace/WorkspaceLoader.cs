@@ -20,17 +20,16 @@ public sealed class WorkspaceLoader
         return new OverlayTable(schema, baseLayer, importLayer, importPath);
     }
 
-    /// <summary>Loads both modes against a single shared import layer. <paramref name="clientCodepage"/>
-    /// is the legacy-encoding fallback used to display names in non-UTF-8 (translated) base data.</summary>
-    public ModeSet LoadModeSet(DbSchema schema, WorkspacePaths paths, int clientCodepage = 1252)
+    /// <summary>Loads the import layer + only <paramref name="activeMode"/>'s base now; the other mode's
+    /// base is parsed lazily on first access (see <see cref="ModeSet"/>). Both modes share one import
+    /// layer (rAthena's db/import applies in both). <paramref name="clientCodepage"/> is the legacy-encoding
+    /// fallback used to display names in non-UTF-8 (translated) base data.</summary>
+    public ModeSet LoadModeSet(DbSchema schema, WorkspacePaths paths, ServerMode activeMode, int clientCodepage = 1252)
     {
         var import = LoadImport(schema, paths, out var importPath, clientCodepage);
-        var renewalBase = LoadBase(schema, paths, ServerMode.Renewal, clientCodepage);
-        var preRenewalBase = LoadBase(schema, paths, ServerMode.PreRenewal, clientCodepage);
-
-        var renewal = new OverlayTable(schema, renewalBase, import, importPath);
-        var preRenewal = new OverlayTable(schema, preRenewalBase, import, importPath);
-        return new ModeSet(renewal, preRenewal, import);
+        OverlayTable Build(ServerMode mode) =>
+            new(schema, LoadBase(schema, paths, mode, clientCodepage), import, importPath);
+        return new ModeSet(activeMode, Build, import, importPath);
     }
 
     private DbLayer LoadBase(DbSchema schema, WorkspacePaths paths, ServerMode mode, int clientCodepage)

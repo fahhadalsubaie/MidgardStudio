@@ -334,8 +334,13 @@ public sealed partial class DbWorkspaceViewModel : ObservableObject, IDisposable
         IsLoading = true;
         try
         {
-            _modeSet = await Task.Run(() => _session.GetModeSet(_schema));
-            _overlay = _modeSet.For(_session.Mode);
+            // Resolve the active overlay on the background thread too — with lazy mode-loading, .For(Mode)
+            // may parse that mode's base on first use (e.g. after a mode switch); keep it off the UI thread.
+            (_modeSet, _overlay) = await Task.Run(() =>
+            {
+                var ms = _session.GetModeSet(_schema);
+                return (ms, ms.For(_session.Mode));
+            });
         }
         catch (Exception ex)
         {

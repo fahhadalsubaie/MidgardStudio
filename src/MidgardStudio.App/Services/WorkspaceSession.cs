@@ -72,9 +72,10 @@ public sealed class WorkspaceSession
         ModeChanged?.Invoke();
     }
 
-    /// <summary>Loads (or returns cached) the ModeSet for a schema. Safe to call from a background thread.</summary>
+    /// <summary>Loads (or returns cached) the ModeSet for a schema. Safe to call from a background thread.
+    /// Only the current mode's base is parsed eagerly; the other mode loads on first <see cref="ModeSet.For"/>.</summary>
     public ModeSet GetModeSet(DbSchema schema) =>
-        _modeSets.GetOrAdd(schema.Id, _ => _loader.LoadModeSet(schema, _config.Paths, SafeCodepage(_config)));
+        _modeSets.GetOrAdd(schema.Id, _ => _loader.LoadModeSet(schema, _config.Paths, Mode, SafeCodepage(_config)));
 
     /// <summary>The overlay for the current mode.</summary>
     public OverlayTable GetActiveOverlay(DbSchema schema) => GetModeSet(schema).For(Mode);
@@ -96,7 +97,7 @@ public sealed class WorkspaceSession
     /// Capture before <see cref="SaveAll"/> (which clears the dirty flags) to label the save summary.</summary>
     public IReadOnlyList<(string Id, string ImportFilePath)> DirtySaveTargets() =>
         _modeSets.Where(kv => kv.Value.IsDirty)
-                 .Select(kv => (kv.Key, kv.Value.Renewal.ImportFilePath))
+                 .Select(kv => (kv.Key, kv.Value.ImportFilePath)) // mode-independent; doesn't build the inactive mode
                  .ToList();
 
     public int SaveAll()
@@ -104,8 +105,9 @@ public sealed class WorkspaceSession
         int saved = 0;
         foreach (var modeSet in _modeSets.Values.Where(m => m.IsDirty))
         {
-            // Both overlays share one import layer; saving either writes the single import file.
-            modeSet.Renewal.Save();
+            // Both overlays share one import layer; saving through the built (active) overlay writes the
+            // single import file — no need to build the inactive mode just to save.
+            modeSet.Save();
             saved++;
         }
         Commands.MarkSaved();

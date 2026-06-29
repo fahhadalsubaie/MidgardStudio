@@ -129,8 +129,8 @@ public sealed partial class ComboEditorViewModel : ObservableObject, IDisposable
         IsLoading = true;
         try
         {
-            var modeSet = await Task.Run(() => _session.GetModeSet(_schema));
-            _overlay = modeSet.For(_session.Mode);
+            // Resolve the active overlay on the background thread (lazy mode-load may parse a base on .For).
+            _overlay = await Task.Run(() => _session.GetModeSet(_schema).For(_session.Mode));
         }
         catch (Exception ex)
         {
