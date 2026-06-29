@@ -31,6 +31,9 @@ public partial class App : Application
         // RO client lua/lub and GRF entry names use legacy single-byte codepages (default 1252).
         Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
 
+        // Let the Grf layer decode formats its ImageProvider can't (e.g. .jpg water textures) via WPF.
+        MidgardStudio.Grf.GrfService.EncodedImageDecoder = DecodeEncodedImage;
+
         string logDir = Path.Combine(AppPaths.LocalDir, "logs"); // machine-local, disposable
         Directory.CreateDirectory(logDir);
 
@@ -137,6 +140,30 @@ public partial class App : Application
         thread.Start();
         ready.Wait(2000); // proceed even if the splash is slow to appear
         return splash;
+    }
+
+    // WPF-based decoder for encoded images (jpg/png) the GRF library can't decode itself → BGRA pixels.
+    private static (int Width, int Height, byte[] Bgra)? DecodeEncodedImage(byte[] data)
+    {
+        try
+        {
+            var bmp = new System.Windows.Media.Imaging.BitmapImage();
+            using (var ms = new System.IO.MemoryStream(data))
+            {
+                bmp.BeginInit();
+                bmp.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
+                bmp.StreamSource = ms;
+                bmp.EndInit();
+            }
+            bmp.Freeze();
+            var conv = new System.Windows.Media.Imaging.FormatConvertedBitmap(bmp, System.Windows.Media.PixelFormats.Bgra32, null, 0);
+            int w = conv.PixelWidth, h = conv.PixelHeight;
+            if (w <= 0 || h <= 0) return null;
+            var px = new byte[w * h * 4];
+            conv.CopyPixels(px, w * 4, 0);
+            return (w, h, px);
+        }
+        catch { return null; }
     }
 
     private static void ConfigureServices(HostBuilderContext context, IServiceCollection services)

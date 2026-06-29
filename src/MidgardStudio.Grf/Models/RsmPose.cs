@@ -11,9 +11,11 @@ namespace MidgardStudio.Grf;
 public static class RsmPose
 {
     /// <param name="frame">Animation time in the RSM frame unit; looped over <paramref name="animationLength"/>.</param>
-    public static Matrix4[] ComputeWorldMatrices(IReadOnlyList<MeshTransform> meshes, double version, int animationLength, double frame)
+    /// <param name="applyFlip">Apply the GL Y-flip (true for standalone preview; false when a map placement
+    /// matrix already carries the flip).</param>
+    public static Matrix4[] ComputeWorldMatrices(IReadOnlyList<MeshTransform> meshes, double version, int animationLength, double frame, bool applyFlip = true)
     {
-        Matrix4 flip = Matrix4.CreateScale(1f, -1f, 1f);
+        Matrix4 flip = applyFlip ? Matrix4.CreateScale(1f, -1f, 1f) : Matrix4.Identity;
         var outMats = new Matrix4[meshes.Count];
 
         if (version >= 2.2)

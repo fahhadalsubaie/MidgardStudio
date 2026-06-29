@@ -232,6 +232,10 @@ public sealed partial class GrfBrowserViewModel : ObservableObject
     [ObservableProperty] private bool _showModel;
     [ObservableProperty] private ModelGeometry? _modelData;
 
+    // 3D map (.gnd/.rsw) preview
+    [ObservableProperty] private bool _showMap;
+    [ObservableProperty] private MapGeometry? _mapData;
+
     // Content search
     [ObservableProperty] private string _searchQuery = string.Empty;
     [ObservableProperty] private bool _isSearching;
@@ -465,13 +469,14 @@ public sealed partial class GrfBrowserViewModel : ObservableObject
 
         // Audio decompresses + writes a temp file off the UI thread so a big .mp3 never freezes the app.
         if (GrfExt.Audio.Contains(ext)) { _ = PreviewAudioAsync(path); return; }
+        // Maps build a terrain mesh off the UI thread (big maps would otherwise hitch).
+        if (GrfExt.Map.Contains(ext)) { _ = PreviewMapAsync(path); return; }
 
         byte[]? data = _grf.BrowseData(path);
         if (GrfExt.Sprite.Contains(ext)) PreviewSprite(path, ext, data);
         else if (ext == ".gat") PreviewGat(path);
         else if (GrfExt.Image.Contains(ext)) ShowImagePreview(GrfImaging.ToImageSource(_grf.BrowseImage(path)), data);
         else if (GrfExt.Model.Contains(ext)) PreviewModel(path, data);
-        else if (GrfExt.Map.Contains(ext)) PreviewMapInfo(path, data);
         else if (GrfExt.Text.Contains(ext)) ShowTextPreview(_grf.BrowseText(path, _viewCodePage) ?? (data is null ? "(unreadable)" : HexDump(data)));
         else ShowTextPreview(data is null ? "(unreadable)" : HexDump(data));
 
@@ -522,6 +527,31 @@ public sealed partial class GrfBrowserViewModel : ObservableObject
         else ShowImagePreview(GrfImaging.ToImageSource(_grf.BrowseImage(sprPath)), spr);
     }
 
+    // Build the 3D map terrain off the UI thread; fall back to the metadata view if it can't be built.
+    private async Task PreviewMapAsync(string path)
+    {
+        ShowMap = true;
+        InfoKind = "3D Map";
+        PreviewSubtitle = "Map · loading…";
+
+        MapGeometry? geo;
+        try { geo = await Task.Run(() => _grf.BuildMap(path)); }
+        catch { geo = null; }
+
+        if (_previewPath != path) return; // user moved on while we were building
+        if (geo is null || geo.TerrainVertices == 0)
+        {
+            ShowMap = false;
+            var data = _grf.BrowseData(path);
+            PreviewMapInfo(path, data); // fall back to the metadata + texture list
+            PreviewSubtitle = BuildSubtitle(data);
+            return;
+        }
+        MapData = geo;
+        InfoKind = $"3D Map · {geo.TerrainVertices / 3} tris";
+        PreviewSubtitle = InfoKind;
+    }
+
     private void PreviewMapInfo(string path, byte[]? data)
     {
         var info = _grf.FileInfo(path);
@@ -558,9 +588,10 @@ public sealed partial class GrfBrowserViewModel : ObservableObject
     private void ClearPreview()
     {
         _previewPath = null;
-        HasPreview = ShowImage = ShowAnimation = ShowInfo = ShowText = ShowModel = false;
+        HasPreview = ShowImage = ShowAnimation = ShowInfo = ShowText = ShowModel = ShowMap = false;
         CleanupAudio();
         ModelData = null;
+        MapData = null;
         PreviewImage = null;
         Animation = null;
         PreviewText = null;

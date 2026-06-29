@@ -507,6 +507,10 @@
                             <controls:GlModelViewer Model="{Binding ModelData}"
                                                     Visibility="{Binding ShowModel, Converter={StaticResource BoolToVis}}" />
 
+                            <!-- 3D map (.gnd / .rsw) — OpenGL terrain via GLWpfControl -->
+                            <controls:GlMapViewer Map="{Binding MapData}"
+                                                  Visibility="{Binding ShowMap, Converter={StaticResource BoolToVis}}" />
+
                             <!-- Map / model metadata -->
                             <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="14"
                                           Visibility="{Binding ShowInfo, Converter={StaticResource BoolToVis}}">

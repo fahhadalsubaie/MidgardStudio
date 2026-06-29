@@ -192,12 +192,78 @@ public sealed class GrfService : IDisposable
         catch { return null; }
     }
 
+    /// <summary>Host-provided decoder for encoded images the GRF library's ImageProvider can't handle
+    /// (notably .jpg water textures). Set by the App to a WPF-based decoder; returns BGRA pixels.</summary>
+    public static Func<byte[], (int Width, int Height, byte[] Bgra)?>? EncodedImageDecoder;
+
     private ModelTexture? LoadModelTexture(string rawTextureName)
     {
         try
         {
-            var img = BrowseImage(ResolveTexture(rawTextureName));
-            return img is null ? null : GrfTexture.ToBgra(img);
+            string path = ResolveTexture(rawTextureName);
+            var img = BrowseImage(path);
+            if (img is not null) return GrfTexture.ToBgra(img);
+
+            // fallback: raw bytes decoded by the host (e.g. .jpg, which the GRF ImageProvider skips)
+            if (EncodedImageDecoder is not null)
+            {
+                var data = BrowseData(path);
+                if (data is not null && EncodedImageDecoder(data) is { } d && d.Bgra.Length >= d.Width * d.Height * 4)
+                    return new ModelTexture { Width = d.Width, Height = d.Height, Bgra = d.Bgra };
+            }
+            return null;
+        }
+        catch { return null; }
+    }
+
+    /// <summary>Builds a 3D map (GND terrain + RSW-placed RSM models) from a .gnd or .rsw, or null.</summary>
+    public MapGeometry? BuildMap(string relativePath)
+    {
+        try
+        {
+            string ext = Path.GetExtension(relativePath).ToLowerInvariant();
+            string gndPath = relativePath;
+            Rsw? rsw = null;
+            if (ext == ".rsw")
+            {
+                var rswData = BrowseData(relativePath);
+                if (rswData is null) return null;
+                rsw = new Rsw(rswData);
+                string gndName = rsw.Header.GroundFile;
+                if (string.IsNullOrEmpty(gndName)) return null;
+                string gndDir = Path.GetDirectoryName(relativePath) ?? string.Empty;
+                gndPath = gndDir.Length == 0 ? gndName : gndDir + "\\" + gndName;
+            }
+
+            var gndData = BrowseData(gndPath);
+            if (gndData is null) return null;
+            var gnd = new Gnd(gndData);
+            var terrain = GndTerrainBuilder.Build(gnd, LoadModelTexture);
+
+            IReadOnlyList<MapModelInstance> models = Array.Empty<MapModelInstance>();
+            float[] dir = terrain.LightDir, amb = terrain.Ambient, dif = terrain.Diffuse;
+            if (rsw is not null)
+            {
+                var cache = new Dictionary<string, ModelGeometry?>(StringComparer.OrdinalIgnoreCase);
+                models = RswModelPlacement.Build(rsw, gnd, mp =>
+                {
+                    if (!cache.TryGetValue(mp, out var g)) cache[mp] = g = BuildModel(mp);
+                    return g;
+                });
+                if (rsw.Light is not null) (dir, amb, dif) = RswLighting.Compute(rsw.Light);
+            }
+
+            // water: GND zones (v1.8+) take precedence, else the single RSW water zone
+            MapWater? water = null;
+            var wzone = gnd.Water?.Zones.Count > 0 ? gnd.Water.Zones[0] : rsw?.Water;
+            if (wzone is not null) water = WaterBuilder.Build(terrain.Min, terrain.Max, wzone, LoadModelTexture);
+
+            return new MapGeometry
+            {
+                Terrain = terrain.Terrain, Models = models, Water = water,
+                Center = terrain.Center, Radius = terrain.Radius, Min = terrain.Min, Max = terrain.Max,
+                LightDir = dir, Ambient = amb, Diffuse = dif,
+            };
         }
         catch { return null; }
     }
