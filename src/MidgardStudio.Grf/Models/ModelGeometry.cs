@@ -37,6 +37,22 @@ public sealed class ModelGeometry
     {
         get { int n = 0; foreach (var m in Meshes) foreach (var s in m.Submeshes) n += s.VertexCount; return n; }
     }
+
+    /// <summary>
+    /// Free the CPU-side vertex/texture pixel arrays once they've been uploaded to GPU buffers/textures.
+    /// They're never read again (the viewer re-uploads only from a freshly built geometry), so keeping
+    /// them alive in this singleton-held DTO is what lets the 3D preview pile memory into the heap.
+    /// Transforms/keyframes (animation needs them) and bbox scalars (camera needs them) are kept.
+    /// </summary>
+    public void ReleaseCpuData()
+    {
+        foreach (var mesh in Meshes)
+            foreach (var sm in mesh.Submeshes)
+            {
+                sm.Vertices = Array.Empty<float>();
+                if (sm.Texture is { } t) t.Bgra = Array.Empty<byte>();
+            }
+    }
 }
 
 /// <summary>One RSM node: its texture-grouped local geometry plus its transform/keyframes.</summary>
@@ -84,9 +100,12 @@ public sealed class ModelSubmesh
     /// <summary>Decoded texture pixels (BGRA, magenta-keyed), or null when it couldn't be loaded (render solid).</summary>
     public ModelTexture? Texture { get; init; }
 
-    /// <summary>Interleaved vertex data, length is a multiple of <see cref="Stride"/>.</summary>
-    public float[] Vertices { get; init; } = Array.Empty<float>();
+    /// <summary>Interleaved vertex data, length is a multiple of <see cref="Stride"/>.
+    /// Settable so the viewer can drop it after GPU upload — see <see cref="ModelGeometry.ReleaseCpuData"/>.</summary>
+    public float[] Vertices { get; set; } = Array.Empty<float>();
 
+    /// <summary>Vertices.Length / Stride. Reads 0 after <see cref="ModelGeometry.ReleaseCpuData"/>; the GL
+    /// viewer captures its draw count at upload time, so the released array never affects rendering.</summary>
     public int VertexCount => Vertices.Length / Stride;
 }
 
@@ -96,6 +115,7 @@ public sealed class ModelTexture
     public int Width { get; init; }
     public int Height { get; init; }
 
-    /// <summary>BGRA, length = Width*Height*4. Magenta (RO color key) is mapped to alpha 0.</summary>
-    public byte[] Bgra { get; init; } = Array.Empty<byte>();
+    /// <summary>BGRA, length = Width*Height*4. Magenta (RO color key) is mapped to alpha 0.
+    /// Settable so the viewer can drop it after GPU upload — see <see cref="ModelGeometry.ReleaseCpuData"/>.</summary>
+    public byte[] Bgra { get; set; } = Array.Empty<byte>();
 }

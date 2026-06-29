@@ -42,7 +42,18 @@
     <AssemblyName>Midgard Studio</AssemblyName>
     <RootNamespace>MidgardStudio.App</RootNamespace>
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>
+
+    <!-- This is a desktop editor that loads big transient buffers (GRF reads, 3D map/model geometry). Keep
+         Workstation+concurrent GC for UI latency, and ask the GC to give memory back to the OS instead of
+         letting committed bytes ratchet up after large allocations are freed. See wiki/gotchas/memory.md. -->
+    <ServerGarbageCollection>false</ServerGarbageCollection>
+    <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 0..9; higher = trade some CPU/more frequent GCs for lower memory + more LOH compaction. -->
+    <RuntimeHostConfigurationOption Include="System.GC.ConserveMemory" Value="5" />
+  </ItemGroup>
 
   <ItemGroup>
     <Resource Include="Assets\logo.png" />

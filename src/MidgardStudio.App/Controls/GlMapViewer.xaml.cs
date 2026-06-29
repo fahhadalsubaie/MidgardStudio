@@ -255,6 +255,7 @@ public partial class GlMapViewer : UserControl
         foreach (var inst in m.Models) BuildModelInst(inst);
         if (m.Water is { } water && water.VertexCount > 0) BuildWater(water);
         GL.BindVertexArray(0);
+        m.ReleaseCpuData();   // GPU owns the data now — drop the CPU copy so map previews can't pile into the heap
     }
 
     private void BuildWater(MapWater w)

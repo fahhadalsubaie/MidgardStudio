@@ -31,6 +31,26 @@ public sealed class MapGeometry
     {
         get { int n = 0; foreach (var s in Terrain) n += s.VertexCount; return n; }
     }
+
+    /// <summary>
+    /// Free the CPU-side terrain/model/water vertex + texture arrays once they've been uploaded to the GPU.
+    /// A single map preview is tens to hundreds of MB of these arrays; held in the singleton VM's MapData
+    /// they pile into the heap as the user browses. Bbox scalars + lighting are kept (camera/shaders need them).
+    /// </summary>
+    public void ReleaseCpuData()
+    {
+        foreach (var s in Terrain)
+        {
+            s.Vertices = Array.Empty<float>();
+            if (s.Texture is { } t) t.Bgra = Array.Empty<byte>();
+        }
+        foreach (var inst in Models) inst.Model.ReleaseCpuData();
+        if (Water is { } w)
+        {
+            w.Vertices = Array.Empty<float>();
+            foreach (var f in w.Frames) f.Bgra = Array.Empty<byte>();
+        }
+    }
 }
 
 /// <summary>One terrain texture group: interleaved vertices, 8 floats each — pos(3) uv(2) color(3).
@@ -41,7 +61,9 @@ public sealed class MapSubmesh
 
     public string TextureName { get; init; } = string.Empty;
     public ModelTexture? Texture { get; init; }
-    public float[] Vertices { get; init; } = Array.Empty<float>();
+
+    /// <summary>Interleaved vertices; settable so the viewer drops it after GPU upload (see <see cref="MapGeometry.ReleaseCpuData"/>).</summary>
+    public float[] Vertices { get; set; } = Array.Empty<float>();
 
     public int VertexCount => Vertices.Length / Stride;
 }
@@ -58,7 +80,8 @@ public sealed class MapWater
 {
     public const int Stride = 5; // pos.xyz, uv.xy (already at y = -Level; the shader adds the wave offset)
 
-    public float[] Vertices { get; init; } = Array.Empty<float>();
+    /// <summary>Interleaved vertices; settable so the viewer drops it after GPU upload (see <see cref="MapGeometry.ReleaseCpuData"/>).</summary>
+    public float[] Vertices { get; set; } = Array.Empty<float>();
     public float WaveHeight { get; init; } = 1f;
     public float WaveSpeed { get; init; } = 2f;
     public float WavePitch { get; init; } = 50f;

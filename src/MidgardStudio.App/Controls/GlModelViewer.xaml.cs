@@ -185,6 +185,7 @@ public partial class GlModelViewer : UserControl
             }
         }
         GL.BindVertexArray(0);
+        m.ReleaseCpuData();   // GPU owns the data now — drop the CPU copy so previews can't pile into the heap
     }
 
     private static int CreateTexture(ModelTexture? t)
