@@ -48,6 +48,10 @@ public partial class GlModelViewer : UserControl
     private MouseButton _dragButton;
     private bool _dragging;
 
+    // viewer options (toolbar)
+    private Vector3 _bg = new(0.10f, 0.10f, 0.13f);
+    private bool _wireframe;
+
     public GlModelViewer()
     {
         InitializeComponent();
@@ -85,7 +89,6 @@ public partial class GlModelViewer : UserControl
 
     private void OnReady()
     {
-        GL.ClearColor(0.10f, 0.10f, 0.13f, 1f);
         GL.Enable(EnableCap.DepthTest);
         GL.Disable(EnableCap.CullFace);   // RSM winding varies + two-sided faces; lighting is two-sided
         _program = BuildProgram(VertSrc, FragSrc);
@@ -103,6 +106,8 @@ public partial class GlModelViewer : UserControl
         _elapsedMs += delta.TotalMilliseconds;
         if (_ready && _dirty) Upload();
 
+        GL.ClearColor(_bg.X, _bg.Y, _bg.Z, 1f);
+        GL.PolygonMode(MaterialFace.FrontAndBack, _wireframe ? PolygonMode.Line : PolygonMode.Fill);
         GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
         if (_program == 0 || _subs.Count == 0) return;
 
@@ -139,8 +144,9 @@ public partial class GlModelViewer : UserControl
                 GL.UniformMatrix4(_modelLoc, true, ref m);
                 lastMesh = s.MeshIndex;
             }
-            GL.Uniform1(_hasTexLoc, s.Tex != 0 ? 1 : 0);
-            if (s.Tex != 0) GL.BindTexture(TextureTarget.Texture2D, s.Tex);
+            int hasTex = !_wireframe && s.Tex != 0 ? 1 : 0;
+            GL.Uniform1(_hasTexLoc, hasTex);
+            if (hasTex == 1) GL.BindTexture(TextureTarget.Texture2D, s.Tex);
             GL.BindVertexArray(s.Vao);
             GL.DrawArrays(PrimitiveType.Triangles, 0, s.Count);
         }
@@ -207,6 +213,7 @@ public partial class GlModelViewer : UserControl
 
     private void OnMouseDown(object sender, MouseButtonEventArgs e)
     {
+        if (e.ClickCount == 2 && e.ChangedButton == MouseButton.Left) { ResetView(); return; }
         _dragging = true;
         _dragButton = e.ChangedButton;
         _lastMouse = e.GetPosition(Surface);
@@ -248,6 +255,28 @@ public partial class GlModelViewer : UserControl
     {
         float factor = e.Delta > 0 ? 0.9f : 1.0f / 0.9f;
         _distance = Math.Clamp(_distance * factor, 0.5f, 500000f);
+    }
+
+    // ---- toolbar ----
+
+    private void ResetView() => FrameCamera(Model);
+
+    private void OnResetViewClick(object sender, RoutedEventArgs e) => ResetView();
+
+    private void OnWireframeToggled(object sender, RoutedEventArgs e) => _wireframe = WireToggle.IsChecked == true;
+
+    private void OnBackgroundClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is System.Windows.Controls.Button { Tag: string hex }) _bg = HexToRgb(hex);
+    }
+
+    private static Vector3 HexToRgb(string hex)
+    {
+        hex = hex.TrimStart('#');
+        float r = Convert.ToInt32(hex.Substring(0, 2), 16) / 255f;
+        float g = Convert.ToInt32(hex.Substring(2, 2), 16) / 255f;
+        float b = Convert.ToInt32(hex.Substring(4, 2), 16) / 255f;
+        return new Vector3(r, g, b);
     }
 
     // ---- gl resource management ----
