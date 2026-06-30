@@ -18,6 +18,10 @@ public static class CashShopValidator
 
     private const string Category = "Cash Shop";
 
+    /// <summary>rAthena reads Price as uint32 and rejects (drops the WHOLE tab) anything above MAX_CASHPOINT
+    /// (= INT_MAX). The app stores Price as a 64-bit long, so this bound must be enforced on the write path.</summary>
+    public const long MaxCashPoint = int.MaxValue;
+
     public static IReadOnlyList<ValidationIssue> Validate(CashShopData data, IReadOnlySet<string> knownItems)
     {
         var issues = new List<ValidationIssue>();
@@ -43,6 +47,11 @@ public static class CashShopValidator
                         $"'{it.Item}' in the {tab} tab has a price of {it.Price} cash points.")
                     { RuleId = "CASHSHOP.PRICE_ZERO", Category = Category });
 
+                if (it.Price > MaxCashPoint)
+                    issues.Add(new ValidationIssue(ValidationSeverity.Error, DbId, key, "Price",
+                        $"'{it.Item}' in the {tab} tab has a price of {it.Price}, above the maximum {MaxCashPoint} — the server drops the entire {tab} tab.")
+                    { RuleId = "CASHSHOP.PRICE_OVERFLOW", Category = Category });
+
                 if (counts[it.Item] > 1 && dupReported.Add(it.Item))
                     issues.Add(new ValidationIssue(ValidationSeverity.Warning, DbId, key, "Item",
                         $"'{it.Item}' appears {counts[it.Item]} times in the {tab} tab.")
@@ -61,6 +70,7 @@ public static class CashShopValidator
         var msgs = new List<string>();
         ValidationSeverity? severity = null;
         if (!knownItems.Contains(item)) { msgs.Add("Not an item in item_db."); severity = ValidationSeverity.Error; }
+        if (price > MaxCashPoint) { msgs.Add($"Price exceeds {MaxCashPoint}; the server drops the whole tab."); severity = ValidationSeverity.Error; }
         if (price <= 0) { msgs.Add("Price is 0 cash points."); severity ??= ValidationSeverity.Warning; }
         if (sameNameInTabCount > 1) { msgs.Add("Duplicated in this tab."); severity ??= ValidationSeverity.Warning; }
         return (severity, msgs.Count == 0 ? null : string.Join(" ", msgs));

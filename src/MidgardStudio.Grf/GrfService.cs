@@ -31,7 +31,9 @@ public sealed class GrfService : IDisposable
 {
     private readonly MultiGrfReader _multi = new();
     private readonly MultiGrfReader _browse = new(); // a single source opened for the Explorer (read-only)
+    private readonly MultiGrfReader _icon = new();   // a single source opened for the icon picker (isolated)
     private string? _browseSource;
+    private string? _iconSource;
     private bool _configured;
 
     static GrfService()
@@ -323,6 +325,76 @@ public sealed class GrfService : IDisposable
         catch { return null; }
     }
 
+    // ----- Icon picker: browse the item-icon folder of ONE chosen source only (isolated reader) -----
+
+    /// <summary>Opens a single source (GRF or data folder) for the icon picker, kept separate from the
+    /// Explorer's browse reader so opening the picker never disturbs the GRF Browser's current source.</summary>
+    public void OpenIconSource(string source)
+    {
+        _icon.Update(new List<MultiGrfPath> { new MultiGrfPath(source) });
+        _iconSource = source;
+    }
+
+    public void CloseIconSource() => _iconSource = null;
+
+    /// <summary>The base names (no folder, no <c>.bmp</c>) of every item inventory icon in the chosen source —
+    /// listing ONLY the item-icon directory (not the whole archive) and ONLY <c>.bmp</c> entries.</summary>
+    public IReadOnlyList<string> ItemIconResourceNames()
+    {
+        if (_iconSource is null) return Array.Empty<string>();
+        try
+        {
+#pragma warning disable CS0618 // obsolete-but-correct on MultiFileTable (same call the icon lookups use)
+            var files = _icon.FileTable.FilesInDirectory(GrfAssetPaths.ItemIconDir, System.IO.SearchOption.TopDirectoryOnly, true);
+#pragma warning restore CS0618
+            var names = new List<string>();
+            foreach (var f in files)
+                if (f.EndsWith(".bmp", StringComparison.OrdinalIgnoreCase))
+                    names.Add(Path.GetFileNameWithoutExtension(f));
+            names.Sort(StringComparer.OrdinalIgnoreCase);
+            return names;
+        }
+        catch { return Array.Empty<string>(); }
+    }
+
+    /// <summary>Base names (no folder, no "여_" prefix, no ".spr") of every headgear accessory sprite in the
+    /// chosen source — listing ONLY the female accessory sprite dir. The base name is exactly what the user
+    /// types as the sprite name (the male sprite mirrors it under 남\남_). Uses the isolated picker reader.</summary>
+    public IReadOnlyList<string> HeadgearSpriteNames()
+    {
+        if (_iconSource is null) return Array.Empty<string>();
+        try
+        {
+#pragma warning disable CS0618 // obsolete-but-correct on MultiFileTable (same call the icon lookups use)
+            var files = _icon.FileTable.FilesInDirectory(GrfAssetPaths.HeadgearSpriteDir, System.IO.SearchOption.TopDirectoryOnly, true);
+#pragma warning restore CS0618
+            string prefix = GrfAssetPaths.HeadgearSpritePrefix;
+            var names = new List<string>();
+            foreach (var f in files)
+                if (f.EndsWith(".spr", StringComparison.OrdinalIgnoreCase))
+                {
+                    var name = Path.GetFileNameWithoutExtension(f);
+                    if (name.StartsWith(prefix, StringComparison.Ordinal)) name = name[prefix.Length..];
+                    names.Add(name);
+                }
+            names.Sort(StringComparer.OrdinalIgnoreCase);
+            return names;
+        }
+        catch { return Array.Empty<string>(); }
+    }
+
+    /// <summary>Decodes one item icon (by resource base name) from the chosen icon source.</summary>
+    public GrfImage? ItemIconFromSource(string resourceName)
+    {
+        if (_iconSource is null || string.IsNullOrWhiteSpace(resourceName)) return null;
+        try
+        {
+            var data = _icon.GetData(Normalize(GrfAssetPaths.ItemIcon(resourceName)));
+            return data is null ? null : ImageProvider.GetImage(data, ".bmp");
+        }
+        catch { return null; }
+    }
+
     public byte[]? GetData(string relativePath)
     {
         if (!_configured) return null;
@@ -381,5 +453,6 @@ public sealed class GrfService : IDisposable
     {
         _multi.Dispose();
         _browse.Dispose();
+        _icon.Dispose();
     }
 }

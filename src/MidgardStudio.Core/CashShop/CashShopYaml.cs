@@ -31,6 +31,8 @@ public static class CashShopYaml
         var data = new CashShopData();
         foreach (var (tab, item) in ParseEntries(baseYaml)) data.AddBase(tab, item);
         foreach (var (tab, item) in ParseEntries(importYaml)) data.AddCustom(tab, item);
+        // Preserve any import tab the 9-member enum doesn't know (typo / future constant) so Save can't drop it.
+        foreach (var unknown in ParseUnknownTabs(importYaml)) data.AddUnknownImportTab(unknown);
         return data;
     }
 
@@ -48,6 +50,13 @@ public static class CashShopYaml
                 Items = t.items.Select(i => new EntryDto { Item = i.Item, Price = i.Price }).ToList(),
             })
             .ToList();
+
+        // Re-emit any preserved unknown tabs after the known ones, so a hand-added/future tab round-trips.
+        body.AddRange(data.UnknownImportTabs.Select(u => new TabDto
+        {
+            Tab = u.Tab,
+            Items = u.Items.Select(i => new EntryDto { Item = i.Item, Price = i.Price }).ToList(),
+        }));
 
         var doc = new DocDto
         {
@@ -71,6 +80,25 @@ public static class CashShopYaml
                 if (string.IsNullOrEmpty(entry?.Item)) continue;
                 yield return (parsed, new CashItem(entry.Item, entry.Price));
             }
+        }
+    }
+
+    /// <summary>Yields the import tab blocks whose name isn't a known <see cref="CashShopTab"/> — captured so
+    /// the writer can preserve them instead of silently dropping them (the bespoke model's Extras equivalent).</summary>
+    private static IEnumerable<CashShopUnknownTab> ParseUnknownTabs(string? yaml)
+    {
+        var doc = TryDeserialize(yaml);
+        if (doc?.Body is null) yield break;
+
+        foreach (var tab in doc.Body)
+        {
+            if (tab?.Tab is null || tab.Items is null) continue;
+            if (System.Enum.TryParse<CashShopTab>(tab.Tab, ignoreCase: true, out _)) continue; // known -> handled by ParseEntries
+            var items = tab.Items
+                .Where(e => !string.IsNullOrEmpty(e?.Item))
+                .Select(e => new CashItem(e!.Item!, e.Price))
+                .ToList();
+            yield return new CashShopUnknownTab { Tab = tab.Tab, Items = items };
         }
     }
 

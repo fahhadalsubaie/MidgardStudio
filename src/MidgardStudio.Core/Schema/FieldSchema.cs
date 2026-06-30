@@ -85,6 +85,16 @@ public sealed class FieldSchema
     /// <summary>Optional conditional visibility (e.g. WeaponLevel only for Type == Weapon).</summary>
     public Func<DbRecord, bool>? IsApplicable { get; init; }
 
+    /// <summary>Name of another field whose value, when it changes, resets THIS field's value (e.g. SubType
+    /// resets when Type changes — a weapon subtype is meaningless once the item becomes a card). Honored only
+    /// by editors opted into auto-clean (the Item Forge); the main editor preserves + warns instead.</summary>
+    public string? ResetOnChangeOf { get; init; }
+
+    /// <summary>Optional record-dependent value set for an Enum field — overrides <see cref="Enum"/> in the
+    /// editor's dropdown so the options narrow with another field (e.g. SubType shows only the Weapon/Ammo/Card
+    /// set matching Type). The form rebuilds on the trigger's applicability change, so the options refresh.</summary>
+    public Func<DbRecord, EnumSource?>? EnumSelector { get; init; }
+
     /// <summary>Conditional visibility that needs cross-database knowledge (e.g. mob_avail PetEquip only when
     /// the Mob is a pet). Evaluated with the reference index when available; takes precedence over
     /// <see cref="IsApplicable"/>. Defaults to applicable when no index is supplied.</summary>

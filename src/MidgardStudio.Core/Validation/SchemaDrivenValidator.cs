@@ -89,13 +89,16 @@ public sealed class SchemaDrivenValidator : IRecordValidator
                 case FieldKind.Flags:
                 case FieldKind.BoolMap:
                 {
-                    var set = record.GetSet(field.Name);
-                    if (set is { Count: > 0 } && field.Enum is not null)
-                        foreach (var member in set)
+                    if (field.Enum is not null)
+                    {
+                        var set = record.GetSet(field.Name);
+                        var excluded = record.GetBoolMap(field.Name)?.Excluded; // "all-except" tokens are spell-checked too
+                        foreach (var member in (set ?? Enumerable.Empty<string>()).Concat(excluded ?? Enumerable.Empty<string>()))
                             if (!IsKnownValue(field, member, observed))
                                 issues.Add(new ValidationIssue(ValidationSeverity.Warning, dbId, key, field.Name,
                                     $"'{member}' is not a recognized {field.Label} option — verify the spelling (rAthena may reject it).")
                                 { RuleId = "FIELD.FLAG_INVALID" });
+                    }
                     break;
                 }
                 case FieldKind.Reference:
@@ -201,6 +204,8 @@ public sealed class SchemaDrivenValidator : IRecordValidator
                 {
                     if (record.GetSet(field.Name) is { } set)
                         foreach (var member in set) Add(map, field.Name, member);
+                    if (record.GetBoolMap(field.Name)?.Excluded is { } excluded) // "all-except" tokens count too
+                        foreach (var member in excluded) Add(map, field.Name, member);
                     break;
                 }
                 case FieldKind.Object:

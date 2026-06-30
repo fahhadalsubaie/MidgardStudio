@@ -133,8 +133,10 @@ public sealed class ItemAutocomplete
         if (_c.IncludeRefineable && IsRefinableType(type) && !server.GetBool("Refineable"))
             lines.Add(_c.UseColors ? "^880000Unrefineable^000000" : "Unrefineable");
 
-        if (_c.IncludeJobs)
-            lines.Add(Line("Jobs", "Jobs", ServerItemText.JobsLabel(server.GetSet("Jobs")) ?? "All", _c.LabelColor));
+        // Who can use it: the class tier (Classes) merged with the jobs ("Transcendent Archer"). Only shown
+        // when the item is actually restricted — an all-jobs/all-classes item gets no line.
+        if (_c.IncludeJobs && ServerItemText.ClassLabel(server.GetSet("Classes"), server.GetSet("Jobs")) is { } applicable)
+            lines.Add(Line("Jobs", "Jobs", applicable, _c.LabelColor));
     }
 
     // ---- shared building blocks ----
@@ -152,6 +154,8 @@ public sealed class ItemAutocomplete
         if (!_c.IncludeWeight) return;
         if (w > 0)
             lines.Add(Line("Weight", "Weight", (w / 10.0).ToString("0.#", CultureInfo.InvariantCulture), _c.ValueColor));
+        else if (_c.AlwaysShowWeight)
+            lines.Add(Line("Weight", "Weight", "0", _c.ValueColor)); // weight 0 shown verbatim (rAthena weight is ×10)
         else if (_c.MissingValueText.Length > 0)
             lines.Add(Line("Weight", "Weight", _c.MissingValueText, _c.ValueColor));
     }

@@ -24,6 +24,9 @@ public static class GrfAssetPaths
     private static readonly string Female = Ansi("여");
     private static readonly string Male = Ansi("남");
 
+    /// <summary>In-GRF directory holding item inventory-icon BMPs (used to enumerate available icons).</summary>
+    public static string ItemIconDir => $@"data\texture\{Ui}\item";
+
     public static string ItemIcon(string resourceName) => $@"data\texture\{Ui}\item\{resourceName}.bmp";
 
     public static string ItemCollection(string resourceName) => $@"data\texture\{Ui}\collection\{resourceName}.bmp";
@@ -35,6 +38,13 @@ public static class GrfAssetPaths
     public static string HeadgearSpriteFemale(string spriteName) => $@"data\sprite\{AccFolder}\{Female}\{Female}_{spriteName}.spr";
 
     public static string HeadgearSpriteMale(string spriteName) => $@"data\sprite\{AccFolder}\{Male}\{Male}_{spriteName}.spr";
+
+    /// <summary>In-GRF directory holding female accessory (headgear) sprites — used to enumerate the available
+    /// sprite base names. The male sprites mirror these under the 남\남_ folder.</summary>
+    public static string HeadgearSpriteDir => $@"data\sprite\{AccFolder}\{Female}";
+
+    /// <summary>The "여_" prefix every female accessory sprite file carries before its base name.</summary>
+    public static string HeadgearSpritePrefix => $"{Female}_";
 
     /// <summary>In-GRF directory holding the client lua data files.</summary>
     public const string LuaFilesDir = @"data\luafiles514\lua files";

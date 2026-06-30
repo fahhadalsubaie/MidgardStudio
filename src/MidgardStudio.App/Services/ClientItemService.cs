@@ -114,6 +114,15 @@ public sealed class ClientItemService : IDirtySource
     public bool Exists(int id) =>
         ClientFile.Custom.ContainsKey(id) || ClientFile.Override.ContainsKey(id) || Official.Contains(id);
 
+    /// <summary>The effective identified icon resource name for an id (custom → override → official), or null —
+    /// read-only, no clone (cheap enough to call across the whole item_db for the icon picker).</summary>
+    public string? ResourceOf(int id)
+    {
+        if (ClientFile.Custom.TryGetValue(id, out var c)) return c.IdentifiedResourceName;
+        if (ClientFile.Override.TryGetValue(id, out var o)) return o.IdentifiedResourceName;
+        return Official.Entry(id)?.IdentifiedResourceName;
+    }
+
     public ItemInfoEntry GetOrCreate(int id)
     {
         if (ClientFile.Custom.TryGetValue(id, out var c)) return c;

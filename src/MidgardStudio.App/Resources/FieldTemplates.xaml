@@ -123,16 +123,23 @@
         <Setter Property="BorderThickness" Value="0" />
         <Setter Property="Padding" Value="0" />
         <Setter Property="IsEditable" Value="True" />
+        <Setter Property="common:FieldBehaviors.OpenOnClick" Value="True" />  <!-- click anywhere opens the list -->
         <Setter Property="VerticalContentAlignment" Value="Center" />
         <Setter Property="SnapsToDevicePixels" Value="True" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="{x:Type ComboBox}">
-                    <Grid>
+                    <!-- Transparent background makes the WHOLE field hit-testable so FieldBehaviors.OpenOnClick
+                         (set in the style) opens the list on a click anywhere — not just the chevron. -->
+                    <Grid Background="Transparent">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
+
+                        <!-- Chevron is purely visual; opening is driven by the OpenOnClick behavior. -->
+                        <Path Grid.Column="1" Data="M 0 0 L 4 4 L 8 0 Z" HorizontalAlignment="Right" VerticalAlignment="Center"
+                              Margin="2,0,4,0" IsHitTestVisible="False" Fill="{DynamicResource TextFillColorSecondaryBrush}" />
 
                         <ContentPresenter x:Name="ContentSite" Grid.Column="0"
                                           Content="{TemplateBinding SelectionBoxItem}"
@@ -148,18 +155,6 @@
                                  CaretBrush="{DynamicResource TextFillColorPrimaryBrush}"
                                  VerticalAlignment="Center" VerticalContentAlignment="Center"
                                  IsReadOnly="{TemplateBinding IsReadOnly}" Focusable="True" Visibility="Hidden" />
-
-                        <ToggleButton x:Name="DropToggle" Grid.Column="1" Focusable="False" ClickMode="Press"
-                                      IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}">
-                            <ToggleButton.Template>
-                                <ControlTemplate TargetType="{x:Type ToggleButton}">
-                                    <Border Background="Transparent" Padding="2,0,0,0">
-                                        <Path Data="M 0 0 L 4 4 L 8 0 Z" VerticalAlignment="Center"
-                                              Fill="{DynamicResource TextFillColorSecondaryBrush}" />
-                                    </Border>
-                                </ControlTemplate>
-                            </ToggleButton.Template>
-                        </ToggleButton>
 
                         <Popup x:Name="PART_Popup" Grid.Column="0" Placement="Bottom" AllowsTransparency="True"
                                IsOpen="{TemplateBinding IsDropDownOpen}" Focusable="False" PopupAnimation="Slide"
@@ -189,6 +184,21 @@
 
     <!-- Int -->
     <DataTemplate DataType="{x:Type vm:IntFieldEditorViewModel}">
+        <Grid Margin="0,2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="140" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Text="{Binding Label}" Style="{StaticResource FieldLabel}" />
+            <Border Grid.Column="1" Style="{StaticResource FieldBox}">
+                <TextBox Text="{Binding Value, UpdateSourceTrigger=LostFocus}" IsEnabled="{Binding IsEditable}"
+                         Style="{StaticResource FieldInputText}" />
+            </Border>
+        </Grid>
+    </DataTemplate>
+
+    <!-- Long (64-bit; e.g. mob EXP read as uint64) -->
+    <DataTemplate DataType="{x:Type vm:LongFieldEditorViewModel}">
         <Grid Margin="0,2">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="140" />
@@ -349,7 +359,10 @@
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
             <TextBlock Text="{Binding Label}" Style="{StaticResource FieldLabel}" />
-            <Border Grid.Column="1" Style="{StaticResource FieldBox}">
+            <Border Grid.Column="1" Style="{StaticResource FieldBox}" Cursor="Hand" ToolTip="Click to edit">
+                <Border.InputBindings>
+                    <MouseBinding MouseAction="LeftClick" Command="{Binding OpenEditorCommand}" />
+                </Border.InputBindings>
                 <TextBlock Text="{Binding Summary}" Opacity="0.8" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
             </Border>
             <ui:Button Grid.Column="2" Content="…" MinWidth="28" Padding="0" Margin="4,0,0,0" Command="{Binding OpenEditorCommand}" ToolTip="{Binding Label}" />
@@ -364,7 +377,10 @@
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
             <TextBlock Text="{Binding Label}" Style="{StaticResource FieldLabel}" />
-            <Border Grid.Column="1" Style="{StaticResource FieldBox}">
+            <Border Grid.Column="1" Style="{StaticResource FieldBox}" Cursor="Hand" ToolTip="Click to edit">
+                <Border.InputBindings>
+                    <MouseBinding MouseAction="LeftClick" Command="{Binding OpenEditorCommand}" />
+                </Border.InputBindings>
                 <TextBlock Text="{Binding Summary}" Opacity="0.8" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
             </Border>
             <ui:Button Grid.Column="2" Content="…" MinWidth="28" Padding="0" Margin="4,0,0,0" Command="{Binding OpenEditorCommand}" ToolTip="{Binding Label}" />
@@ -379,7 +395,10 @@
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
             <TextBlock Text="{Binding Label}" Style="{StaticResource FieldLabel}" />
-            <Border Grid.Column="1" Style="{StaticResource FieldBox}">
+            <Border Grid.Column="1" Style="{StaticResource FieldBox}" Cursor="Hand" ToolTip="Click to edit">
+                <Border.InputBindings>
+                    <MouseBinding MouseAction="LeftClick" Command="{Binding OpenEditorCommand}" />
+                </Border.InputBindings>
                 <TextBlock Text="{Binding Summary}" Opacity="0.8" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
             </Border>
             <ui:Button Grid.Column="2" Content="…" MinWidth="28" Padding="0" Margin="4,0,0,0" Command="{Binding OpenEditorCommand}" ToolTip="{Binding Label}" />
@@ -406,16 +425,53 @@
 
     <DataTemplate x:Key="BoolMapFullTemplate">
         <ScrollViewer VerticalScrollBarVisibility="Auto">
-            <ItemsControl ItemsSource="{Binding Chips}" IsEnabled="{Binding IsEditable}">
-                <ItemsControl.ItemsPanel>
-                    <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
-                </ItemsControl.ItemsPanel>
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate>
-                        <ToggleButton Content="{Binding Label}" ToolTip="{Binding Key}" IsChecked="{Binding IsSelected}" Margin="2" Padding="9,4" />
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
+            <StackPanel>
+                <TextBlock Opacity="0.5" FontSize="10.5" Margin="2,0,0,5" TextWrapping="Wrap"
+                           Text="Click to cycle: Off → Include (purple) → Exclude (red).  Exclude = “All, except this”."
+                           Visibility="{Binding SupportsExclude, Converter={StaticResource BoolToVis}}" />
+                <ItemsControl ItemsSource="{Binding Chips}" IsEnabled="{Binding IsEditable}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Button Command="{Binding CycleCommand}" ToolTip="{Binding Key}" Margin="2" Padding="9,4" Cursor="Hand">
+                                <Button.Style>
+                                    <Style TargetType="Button">
+                                        <Setter Property="Foreground" Value="#C8C8D0" />
+                                        <Setter Property="Template">
+                                            <Setter.Value>
+                                                <ControlTemplate TargetType="Button">
+                                                    <Border x:Name="bd" Background="#16FFFFFF" BorderBrush="#26FFFFFF" BorderThickness="1"
+                                                            CornerRadius="6" Padding="{TemplateBinding Padding}">
+                                                        <TextBlock x:Name="txt" Text="{Binding Label}" Foreground="{TemplateBinding Foreground}" />
+                                                    </Border>
+                                                    <ControlTemplate.Triggers>
+                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                            <Setter TargetName="bd" Property="Background" Value="#2AFFFFFF" />
+                                                        </Trigger>
+                                                        <DataTrigger Binding="{Binding State}" Value="Include">
+                                                            <Setter TargetName="bd" Property="Background" Value="#7A3FD4" />
+                                                            <Setter TargetName="bd" Property="BorderBrush" Value="#9A5FF4" />
+                                                            <Setter TargetName="txt" Property="Foreground" Value="White" />
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding State}" Value="Exclude">
+                                                            <Setter TargetName="bd" Property="Background" Value="#7E2D2D" />
+                                                            <Setter TargetName="bd" Property="BorderBrush" Value="#C85A5A" />
+                                                            <Setter TargetName="txt" Property="Foreground" Value="White" />
+                                                            <Setter TargetName="txt" Property="TextDecorations" Value="Strikethrough" />
+                                                        </DataTrigger>
+                                                    </ControlTemplate.Triggers>
+                                                </ControlTemplate>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
         </ScrollViewer>
     </DataTemplate>
 

@@ -239,6 +239,58 @@ public class ItemAutocompleteTests
     }
 
     [Fact]
+    public void AlwaysShowWeight_EmitsZeroWeight_WhenOff_OmitsIt()
+    {
+        var r = Item(909, "Etc", x => x.SetRaw("Name", "Jellopy")); // no Weight set → 0
+
+        // Default: a 0 weight is omitted (preserves existing behaviour).
+        Assert.DoesNotContain(new ItemAutocomplete(Cfg).IdentifiedDescription(r), l => l.Contains("Weight", StringComparison.Ordinal));
+
+        // The Item Forge forces it on, so a forged item always shows the line.
+        var forge = new AutocompleteConfig { AlwaysShowWeight = true };
+        Assert.Contains("Weight:^009900 0^000000", new ItemAutocomplete(forge).IdentifiedDescription(r));
+    }
+
+    [Fact]
+    public void ClassLabel_MergesTier_AndJob()
+    {
+        Assert.Equal("Transcendent Archer", ServerItemText.ClassLabel(Tokens("Upper"), Tokens("Archer")));
+        Assert.Equal("Archer", ServerItemText.ClassLabel(Tokens("All"), Tokens("Archer")));   // "All" tier dropped
+        Assert.Equal("Transcendent", ServerItemText.ClassLabel(Tokens("Upper"), Tokens("All")));
+        Assert.Null(ServerItemText.ClassLabel(Tokens("All"), Tokens("All")));                  // unrestricted → no line
+        Assert.Null(ServerItemText.ClassLabel(null, null));
+
+        static HashSet<string> Tokens(params string[] t) => new(t, StringComparer.Ordinal);
+    }
+
+    [Fact]
+    public void Description_JobLine_OnlyWhenRestricted_AndReadsAsClassPlusJob()
+    {
+        var open = Item(1101, "Weapon", x => { x.SetRaw("Attack", 25); x.SetRaw("SubType", "1hSword"); });
+        Assert.DoesNotContain(new ItemAutocomplete(Cfg).IdentifiedDescription(open),
+            l => l.Contains("Jobs", StringComparison.Ordinal) || l.Contains("Archer", StringComparison.Ordinal));
+
+        var restricted = Item(1102, "Weapon", x =>
+        {
+            x.SetRaw("Attack", 25); x.SetRaw("SubType", "1hSword");
+            x.SetRaw("Classes", new HashSet<string>(StringComparer.Ordinal) { "Upper" });
+            x.SetRaw("Jobs", new HashSet<string>(StringComparer.Ordinal) { "Archer" });
+        });
+        Assert.Contains("Jobs:^6666CC Transcendent Archer^000000", new ItemAutocomplete(Cfg).IdentifiedDescription(restricted));
+    }
+
+    [Fact]
+    public void Clone_IsIndependent_OfTheSourceLabels()
+    {
+        var src = new AutocompleteConfig();
+        var copy = src.Clone();
+        copy.Labels["Class"] = "Type";
+
+        Assert.Equal("Type", copy.Label("Class", "Class"));
+        Assert.Equal("Class", src.Label("Class", "Class")); // mutating the clone never touches the original
+    }
+
+    [Fact]
     public void Usable_WithItemSkill_ShowsCastLine()
     {
         var r = Item(12887, "Usable", x =>

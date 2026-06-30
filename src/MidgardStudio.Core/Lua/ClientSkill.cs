@@ -60,6 +60,11 @@ public sealed class ClientSkill
     public List<int> SinglePostDelay { get; set; } = new();
     public List<string> SkillFlag { get; set; } = new();              // SKFLAG_* identifiers (preserved)
 
+    /// <summary>The SKILL_DELAY_LIST keys in their original on-disk order, captured on read so an edited entry
+    /// re-emits them in the same order — a few real entries (e.g. HW_MAGICPOWER) place SkillFlag last rather
+    /// than first. Empty for a newly-created entry, which falls back to the default key order (audit #36).</summary>
+    public List<string> DelayKeyOrder { get; set; } = new();
+
     public ClientSkill Clone() => new()
     {
         Constant = Constant,
@@ -86,6 +91,7 @@ public sealed class ClientSkill
         GlobalPostDelay = new List<int>(GlobalPostDelay),
         SinglePostDelay = new List<int>(SinglePostDelay),
         SkillFlag = new List<string>(SkillFlag),
+        DelayKeyOrder = new List<string>(DelayKeyOrder),
     };
 }
 

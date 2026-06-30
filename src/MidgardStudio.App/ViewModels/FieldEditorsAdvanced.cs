@@ -12,13 +12,19 @@ namespace MidgardStudio.App.ViewModels;
 
 // ---- Bool-map (Jobs / Classes / Locations / Modes) rendered as toggle chips ----
 
+/// <summary>The tri-state of a bool-map chip: not set, enabled (true), or excluded (false / "all-except").</summary>
+public enum ChipState { None, Include, Exclude }
+
 public sealed partial class BoolChipViewModel : ObservableObject
 {
-    public BoolChipViewModel(string key, string label, bool selected)
+    private readonly bool _canExclude; // only specific tokens of an "All"-bearing field can be excluded
+
+    public BoolChipViewModel(string key, string label, ChipState state, bool canExclude)
     {
         Key = key;
         Label = label;
-        _isSelected = selected;
+        _state = state;
+        _canExclude = canExclude;
     }
 
     /// <summary>Raw value stored/serialized (e.g. "Head_Low").</summary>
@@ -28,54 +34,90 @@ public sealed partial class BoolChipViewModel : ObservableObject
     public string Label { get; }
 
     [ObservableProperty]
-    private bool _isSelected;
+    private ChipState _state;
 
     public event Action? Toggled;
 
-    partial void OnIsSelectedChanged(bool value) => Toggled?.Invoke();
+    partial void OnStateChanged(ChipState value) => Toggled?.Invoke();
+
+    /// <summary>Cycles on click: None → Include → (Exclude →) None. Exclude is only reachable for the specific
+    /// tokens of a field that has a universal "All" (Jobs/Classes) — the "All" chip and plain multi-select
+    /// fields (Locations, Modes) just toggle None ↔ Include.</summary>
+    [RelayCommand]
+    private void Cycle()
+    {
+        State = State switch
+        {
+            ChipState.None => ChipState.Include,
+            ChipState.Include => _canExclude ? ChipState.Exclude : ChipState.None,
+            _ => ChipState.None,
+        };
+    }
 }
 
 public sealed class BoolMapFieldEditorViewModel : FieldEditorViewModel
 {
-    private readonly HashSet<string> _extraKeys; // true keys not represented by a chip — preserved on commit
+    // Keys not represented by a chip (a future rAthena token) — preserved on commit so we never drop them.
+    private readonly HashSet<string> _extraIncluded;
+    private readonly HashSet<string> _extraExcluded;
 
     public BoolMapFieldEditorViewModel(DbRecord r, FieldSchema f, FieldEditorContext c) : base(r, f, c)
     {
-        var set = r.GetSet(f.Name);
+        var included = r.GetSet(f.Name);          // included tokens (works for a BoolMap or a plain set)
+        var excluded = r.GetBoolMap(f.Name)?.Excluded;
         var options = f.Enum?.Values ?? Array.Empty<string>();
         var optionSet = new HashSet<string>(options, StringComparer.Ordinal);
 
+        // "All-except" only makes sense where a universal "All" token exists (Jobs/Classes). Other bool-maps
+        // (Locations, mob Modes) stay plain include-only multi-select.
+        SupportsExclude = optionSet.Contains("All");
+
         foreach (var option in options)
         {
-            var chip = new BoolChipViewModel(option, f.Enum?.Label(option) ?? option, set?.Contains(option) ?? false);
+            var state = (included?.Contains(option) ?? false) ? ChipState.Include
+                      : (excluded?.Contains(option) ?? false) ? ChipState.Exclude
+                      : ChipState.None;
+            var chip = new BoolChipViewModel(option, f.Enum?.Label(option) ?? option, state,
+                canExclude: SupportsExclude && option != "All");
             chip.Toggled += OnChipToggled;
             Chips.Add(chip);
         }
 
-        _extraKeys = set is null
+        _extraIncluded = included is null
             ? new HashSet<string>(StringComparer.Ordinal)
-            : new HashSet<string>(set.Where(k => !optionSet.Contains(k)), StringComparer.Ordinal);
+            : new HashSet<string>(included.Where(k => !optionSet.Contains(k)), StringComparer.Ordinal);
+        _extraExcluded = excluded is null
+            ? new HashSet<string>(StringComparer.Ordinal)
+            : new HashSet<string>(excluded.Where(k => !optionSet.Contains(k)), StringComparer.Ordinal);
     }
 
     public ObservableCollection<BoolChipViewModel> Chips { get; } = new();
+
+    /// <summary>True for Jobs/Classes — drives the "click to exclude" hint and the tri-state cycle.</summary>
+    public bool SupportsExclude { get; }
 
     public override string Summary
     {
         get
         {
-            var all = Chips.Where(c => c.IsSelected).Select(c => c.Label).Concat(_extraKeys).ToList();
-            if (all.Count == 0) return "None";
-            string s = string.Join(", ", all);
+            var inc = Chips.Where(c => c.State == ChipState.Include).Select(c => c.Label).Concat(_extraIncluded).ToList();
+            var exc = Chips.Where(c => c.State == ChipState.Exclude).Select(c => c.Label).Concat(_extraExcluded).ToList();
+            if (inc.Count == 0 && exc.Count == 0) return "None";
+            string s = string.Join(", ", inc);
+            if (exc.Count > 0) s = (s.Length == 0 ? "—" : s) + " · except " + string.Join(", ", exc);
             return s.Length > 50 ? s[..50] + "…" : s;
         }
     }
 
     private void OnChipToggled()
     {
-        var set = new HashSet<string>(_extraKeys, StringComparer.Ordinal);
+        var map = new BoolMap(_extraIncluded);
         foreach (var chip in Chips)
-            if (chip.IsSelected) set.Add(chip.Key);
-        Commit(set);
+            if (chip.State == ChipState.Include) map.Add(chip.Key);
+        foreach (var x in _extraExcluded) map.Excluded.Add(x);
+        foreach (var chip in Chips)
+            if (chip.State == ChipState.Exclude) map.Excluded.Add(chip.Key);
+        Commit(map);
         OnPropertyChanged(nameof(Summary));
     }
 }

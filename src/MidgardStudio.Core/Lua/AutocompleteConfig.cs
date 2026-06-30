@@ -20,6 +20,7 @@ public sealed class AutocompleteConfig
     public bool IncludeJobs { get; set; } = true;
     public bool IncludePosition { get; set; } = true;      // headgear slot(s)
     public bool IncludeWeight { get; set; } = true;
+    public bool AlwaysShowWeight { get; set; }             // show "Weight: 0" even at 0 (the Item Forge forces this)
     public bool IncludeSlots { get; set; }                 // off by default (RO shows slots in the name)
     public bool IncludeRefineable { get; set; } = true;    // shows "Unrefineable" when not refineable
     public bool IncludeCompoundOn { get; set; } = true;    // cards
@@ -48,6 +49,15 @@ public sealed class AutocompleteConfig
 
     /// <summary>Per-field label overrides. Key is the canonical field key (see <see cref="LabelKeys"/>).</summary>
     public Dictionary<string, string> Labels { get; set; } = new(StringComparer.Ordinal);
+
+    /// <summary>A deep copy (independent Labels/ElementColors) so a caller can tweak it without touching settings.</summary>
+    public AutocompleteConfig Clone()
+    {
+        var c = (AutocompleteConfig)MemberwiseClone();
+        c.Labels = new Dictionary<string, string>(Labels, StringComparer.Ordinal);
+        c.ElementColors = new Dictionary<string, string>(ElementColors, StringComparer.Ordinal);
+        return c;
+    }
 
     /// <summary>Resolves a label, honoring a user override.</summary>
     public string Label(string key, string fallback) =>

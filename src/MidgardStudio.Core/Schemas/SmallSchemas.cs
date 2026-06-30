@@ -88,6 +88,14 @@ public static class AbraDbSchema
 /// <summary>Schema for mob_summon (MOB_SUMMONABLE_DB v1) — Bloody/Dead Branch, Class Change pools, etc.</summary>
 public static class MobSummonSchema
 {
+    // Group must resolve to one of exactly six compile-time MOBG_* constants (a 7th can't exist without a
+    // C++ recompile). Free text let a typo'd group through, which rAthena silently drops on load. The
+    // server lookup is case-insensitive, so existing mixed-case data (pre-re "Bloody_Dead_Branch") still
+    // validates via the base-data union.
+    public static readonly EnumSource Groups = EnumSource.Static("MobSummonGroup",
+        "BRANCH_OF_DEAD_TREE", "PORING_BOX", "BLOODY_DEAD_BRANCH",
+        "RED_POUCH_OF_SURPRISE", "CLASSCHANGE", "TAEKWON_MISSION");
+
     public static readonly DbSchema SummonRow = DbSchema.Nested("SummonEntry", new[]
     {
         new FieldSchema { Name = "Mob", Label = "Mob", Kind = FieldKind.Reference, Enum = EnumSource.Reference("SummonMob", "mob_db") },
@@ -104,7 +112,7 @@ public static class MobSummonSchema
         Layout = FileLayout.Standard("mob_summon.yml"),
         Fields = new[]
         {
-            new FieldSchema { Name = "Group", Label = "Group", Kind = FieldKind.String, IsKey = true, IsDisplay = true },
+            new FieldSchema { Name = "Group", Label = "Group", Kind = FieldKind.Enum, Enum = Groups, IsKey = true, IsDisplay = true },
             new FieldSchema { Name = "Default", Label = "Default Mob", Kind = FieldKind.Reference, Enum = EnumSource.Reference("SummonDefault", "mob_db") },
             FieldSchema.ObjectListField("Summon", "Summon List", SummonRow),
         },

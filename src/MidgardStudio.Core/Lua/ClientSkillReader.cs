@@ -97,6 +97,7 @@ public static class ClientSkillReader
             s.SinglePostDelay = ReadIntArray(t.GetTable("SkillSinglePostDelay"));
             s.SkillFlag = t.GetTable("SkillFlag")?.Array.Select(x => x as string ?? x?.ToString() ?? string.Empty)
                 .Where(x => x.Length > 0).ToList() ?? new List<string>();
+            s.DelayKeyOrder = t.NameKeys.Keys.ToList(); // source key order, so an edit re-emits SkillFlag-last entries faithfully (audit #36)
         }
     }
 

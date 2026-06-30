@@ -105,6 +105,57 @@ public class CashShopTests
     }
 
     [Fact]
+    public void Unknown_import_tab_is_preserved_and_re_emitted() // audit #25
+    {
+        string yaml = """
+            Header:
+              Type: ITEM_CASH_DB
+              Version: 1
+            Body:
+              - Tab: New
+                Items:
+                  - Item: Apple
+                    Price: 100
+              - Tab: Bogus
+                Items:
+                  - Item: Mystery
+                    Price: 7
+            """;
+        var data = CashShopYaml.Load(null, yaml);
+
+        // The unknown tab isn't a known tab, but it's captured (not dropped) ...
+        var unknown = Assert.Single(data.UnknownImportTabs);
+        Assert.Equal("Bogus", unknown.Tab);
+        Assert.Equal("Mystery", unknown.Items.Single().Item);
+
+        // ... and survives a write -> read cycle byte-for-content, alongside the known tab.
+        var reloaded = CashShopYaml.Load(null, CashShopYaml.Write(data));
+        Assert.Equal("Apple", reloaded.Custom(CashShopTab.New).Single().Item);
+        Assert.Equal("Mystery", reloaded.UnknownImportTabs.Single().Items.Single().Item);
+    }
+
+    [Fact]
+    public void Validator_flags_a_price_above_max_cashpoint() // audit #6
+    {
+        string yaml = """
+            Header:
+              Type: ITEM_CASH_DB
+              Version: 1
+            Body:
+              - Tab: New
+                Items:
+                  - Item: Apple
+                    Price: 3000000000
+            """;
+        var issues = CashShopValidator.Validate(CashShopYaml.Load(null, yaml), Known("Apple"));
+
+        var error = Assert.Single(issues, i => i.RuleId == "CASHSHOP.PRICE_OVERFLOW");
+        Assert.Equal(ValidationSeverity.Error, error.Severity);
+        // And the inline per-item badge agrees.
+        Assert.Equal(ValidationSeverity.Error, CashShopValidator.Check("Apple", 3_000_000_000L, 1, Known("Apple")).Severity);
+    }
+
+    [Fact]
     public void Malformed_yaml_loads_as_empty_rather_than_throwing()
     {
         var data = CashShopYaml.Load(null, "this: is: not: valid: cash: yaml: [");

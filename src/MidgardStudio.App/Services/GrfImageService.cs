@@ -59,6 +59,37 @@ public sealed class GrfImageService
     private static long Estimate(ImageSource? img) =>
         img is BitmapSource b ? (long)b.PixelWidth * b.PixelHeight * Math.Max(1, (b.Format.BitsPerPixel + 7) / 8) : 4096;
 
+    // ----- Icon picker: enumerate + decode icons from ONE chosen source (separate transient cache) -----
+
+    private readonly Dictionary<string, ImageSource?> _iconPick = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>The configured layered sources (GRFs / loose folders) the user can pick from.</summary>
+    public IReadOnlyList<string> Sources => _grf.Sources;
+
+    /// <summary>Open one source for icon browsing (clears the picker thumbnail cache).</summary>
+    public void OpenIconSource(string source) { lock (_lock) _iconPick.Clear(); _grf.OpenIconSource(source); }
+
+    public void CloseIconSource() { lock (_lock) _iconPick.Clear(); _grf.CloseIconSource(); }
+
+    /// <summary>Base resource names of every item icon in the chosen source (item-icon folder only, .bmp only).</summary>
+    public IReadOnlyList<string> IconResourceNames() => _grf.ItemIconResourceNames();
+
+    /// <summary>Base names of every headgear accessory sprite in the chosen source (accessory sprite folder
+    /// only, .spr only, "여_" prefix stripped) — i.e. the values the sprite-name field accepts.</summary>
+    public IReadOnlyList<string> HeadgearSpriteNames() => _grf.HeadgearSpriteNames();
+
+    /// <summary>A thumbnail for one icon resource from the chosen source (small transient cache; lazy per row).</summary>
+    public ImageSource? IconThumbnail(string resourceName)
+    {
+        lock (_lock)
+        {
+            if (_iconPick.TryGetValue(resourceName, out var hit)) return hit;
+            var img = GrfImaging.ToImageSource(_grf.ItemIconFromSource(resourceName));
+            _iconPick[resourceName] = img;
+            return img;
+        }
+    }
+
     public ImageSource? ItemIcon(string? resourceName)
     {
         if (string.IsNullOrWhiteSpace(resourceName)) return null;

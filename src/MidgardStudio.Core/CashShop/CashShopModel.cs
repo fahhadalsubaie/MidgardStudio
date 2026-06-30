@@ -42,6 +42,16 @@ public sealed class CashItem
     public long Price { get; set; }
 }
 
+/// <summary>An import-layer tab block whose name isn't one of the nine known tabs (a typo or a future
+/// rAthena constant). The model can't represent it, but it's preserved verbatim and re-emitted on Save so the
+/// bespoke writer doesn't silently erase user content — the same byte-intact guarantee the schema-driven path
+/// gets from <c>DbRecord.Extras</c>.</summary>
+public sealed class CashShopUnknownTab
+{
+    public required string Tab { get; init; }
+    public required List<CashItem> Items { get; init; }
+}
+
 /// <summary>
 /// The bespoke cash-shop model (deliberately NOT the schema-driven OverlayTable — see ADR-0004): nine fixed
 /// tabs, each with a read-only <see cref="Base"/> list (from the server's base <c>item_cash.yml</c>, normally
@@ -53,6 +63,7 @@ public sealed class CashShopData
 {
     private readonly Dictionary<CashShopTab, List<CashItem>> _base = NewTabMap();
     private readonly Dictionary<CashShopTab, List<CashItem>> _custom = NewTabMap();
+    private readonly List<CashShopUnknownTab> _unknownImportTabs = new();
 
     /// <summary>The nine tabs in display order.</summary>
     public static readonly IReadOnlyList<CashShopTab> Tabs = System.Enum.GetValues<CashShopTab>();
@@ -75,6 +86,11 @@ public sealed class CashShopData
     internal void AddBase(CashShopTab tab, CashItem item) => _base[tab].Add(item);
 
     internal void AddCustom(CashShopTab tab, CashItem item) => _custom[tab].Add(item);
+
+    internal void AddUnknownImportTab(CashShopUnknownTab tab) => _unknownImportTabs.Add(tab);
+
+    /// <summary>Unrecognized import tab blocks, preserved verbatim and re-emitted on Save (never dropped).</summary>
+    public IReadOnlyList<CashShopUnknownTab> UnknownImportTabs => _unknownImportTabs;
 
     /// <summary>A canonical text fingerprint of the editable (import) content — drives content-based dirty
     /// detection, so undoing an edit back to the loaded state correctly reports "nothing to save". Order

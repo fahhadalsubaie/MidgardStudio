@@ -8,223 +8,326 @@
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance Type=vm:ForgeViewModel}">
 
-    <DockPanel>
-        <!-- Header -->
-        <Grid DockPanel.Dock="Top" Margin="0,0,0,12">
-            <StackPanel>
-                <TextBlock Text="Item Forge" Style="{StaticResource TitleScreen}" />
-                <TextBlock Opacity="0.65" FontSize="12" TextWrapping="Wrap"
-                           Text="Create a complete custom item in two quick steps — server data first, then how it looks in the client. Cross-file values are kept correct automatically." />
-            </StackPanel>
-            <Border HorizontalAlignment="Right" VerticalAlignment="Top" Background="#1FFFFFFF" CornerRadius="4" Padding="10,4">
-                <TextBlock Text="{Binding StepLabel}" FontSize="12" FontWeight="SemiBold" Opacity="0.9" />
-            </Border>
-        </Grid>
+    <UserControl.Resources>
+        <!-- Tasteful entrance: each section card fades + rises when it loads (incl. a group revealed by a Type change). -->
+        <Style x:Key="SectionEnter" TargetType="ContentPresenter">
+            <Setter Property="Opacity" Value="0" />
+            <Setter Property="RenderTransform">
+                <Setter.Value><TranslateTransform Y="10" /></Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <EventTrigger RoutedEvent="Loaded">
+                    <BeginStoryboard>
+                        <Storyboard>
+                            <DoubleAnimation Storyboard.TargetProperty="Opacity" To="1" Duration="0:0:0.28">
+                                <DoubleAnimation.EasingFunction><CubicEase EasingMode="EaseOut" /></DoubleAnimation.EasingFunction>
+                            </DoubleAnimation>
+                            <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)"
+                                             To="0" Duration="0:0:0.32">
+                                <DoubleAnimation.EasingFunction><CubicEase EasingMode="EaseOut" /></DoubleAnimation.EasingFunction>
+                            </DoubleAnimation>
+                        </Storyboard>
+                    </BeginStoryboard>
+                </EventTrigger>
+            </Style.Triggers>
+        </Style>
 
-        <!-- Footer: navigation + actions -->
-        <DockPanel DockPanel.Dock="Bottom" Margin="0,12,0,0">
-            <TextBlock DockPanel.Dock="Top" Text="{Binding StatusMessage}" Foreground="#7FD0A0" TextWrapping="Wrap"
-                       Margin="0,0,0,8" Visibility="{Binding StatusMessage, Converter={StaticResource StringToVis}}" />
-            <StackPanel Orientation="Horizontal">
-                <ui:Button Content="Export data folder…" Command="{Binding ExportDataFolderCommand}" Margin="0,0,6,0">
-                    <ui:Button.Icon><ui:SymbolIcon Symbol="FolderZip24" /></ui:Button.Icon>
-                </ui:Button>
-                <ui:Button Content="Reset" Command="{Binding ResetCommand}" />
+        <!-- Nav-rail row: flat, left accent bar when active, subtle hover. -->
+        <Style x:Key="NavRow" TargetType="Button">
+            <Setter Property="HorizontalContentAlignment" Value="Left" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Foreground" Value="#C8C8D0" />
+            <Setter Property="Padding" Value="12,6" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bd" Background="{TemplateBinding Background}" CornerRadius="6" Padding="{TemplateBinding Padding}">
+                            <Grid>
+                                <Border x:Name="bar" Width="3" HorizontalAlignment="Left" CornerRadius="2"
+                                        Background="#9B7BE0" Opacity="0" Margin="-6,1,0,1" />
+                                <ContentPresenter VerticalAlignment="Center" Margin="4,0,0,0" />
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="#16FFFFFF" />
+                            </Trigger>
+                            <DataTrigger Binding="{Binding IsActive}" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="#22000000" />
+                                <Setter TargetName="bar" Property="Opacity" Value="1" />
+                                <Setter Property="Foreground" Value="#FFFFFF" />
+                            </DataTrigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+
+    <DockPanel>
+        <!-- ===== Header + top action bar ===== -->
+        <Grid DockPanel.Dock="Top" Margin="0,0,0,12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                <TextBlock Text="Item Forge" Style="{StaticResource TitleScreen}" />
+                <TextBlock Opacity="0.6" FontSize="12" TextWrapping="Wrap" MaxWidth="640" HorizontalAlignment="Left"
+                           Text="Craft a complete custom item — server data, client look, and sprite, all in one place." />
             </StackPanel>
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                <ui:Button Content="◀ Back" Command="{Binding BackCommand}" Margin="0,0,8,0"
-                           Visibility="{Binding IsStep2, Converter={StaticResource BoolToVis}}" />
-                <ui:Button Content="Next ▶" Appearance="Primary" Command="{Binding NextCommand}" MinWidth="120"
-                           Visibility="{Binding IsStep1, Converter={StaticResource BoolToVis}}" />
-                <ui:Button Content="Forge item" Appearance="Primary" Command="{Binding ForgeCommand}" MinWidth="120"
-                           Visibility="{Binding IsStep2, Converter={StaticResource BoolToVis}}">
+            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                <ui:Button Content="Reset" Command="{Binding ResetCommand}" Margin="0,0,6,0" />
+                <ui:Button Content="Forge item" Appearance="Primary" Command="{Binding ForgeCommand}" MinWidth="130" Height="34" FontSize="13">
                     <ui:Button.Icon><ui:SymbolIcon Symbol="Add24" /></ui:Button.Icon>
                 </ui:Button>
             </StackPanel>
-        </DockPanel>
+        </Grid>
 
-        <!-- Step content -->
+        <TextBlock DockPanel.Dock="Top" Text="{Binding StatusMessage}" Foreground="#7FD0A0" FontSize="11.5" TextWrapping="Wrap"
+                   Margin="2,0,0,8" Visibility="{Binding StatusMessage, Converter={StaticResource StringToVis}}" />
+
+        <!-- ===== Three-pane studio ===== -->
         <Grid>
-            <!-- ===== Step 1: server side ===== -->
-            <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,0,8,0"
-                          Visibility="{Binding IsStep1, Converter={StaticResource BoolToVis}}">
-                <StackPanel TextElement.FontSize="12" MaxWidth="600" HorizontalAlignment="Left">
-                    <ui:Card Padding="14,12" Margin="0,0,0,10">
-                        <StackPanel>
-                            <TextBlock Text="Identity" Style="{StaticResource SectionTitle}" FontWeight="SemiBold" Margin="0,0,0,8" />
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="150" />
+                <ColumnDefinition Width="*" MinWidth="420" />
+                <ColumnDefinition Width="16" />
+                <ColumnDefinition Width="460" MinWidth="360" />
+            </Grid.ColumnDefinitions>
 
-                            <TextBlock Text="Display name" Opacity="0.85" Margin="0,0,0,2" />
-                            <Grid Margin="0,0,0,8">
-                                <ui:TextBox Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" PlaceholderText="e.g. Crown of Valor" />
-                                <ui:Button HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,4,0"
-                                           Appearance="Transparent" MinWidth="0" Padding="4,2"
-                                           Command="{Binding FillAegisFromNameCommand}" ToolTip="Generate aegis name from this">
-                                    <ui:Button.Icon><ui:SymbolIcon Symbol="Sparkle24" FontSize="14" /></ui:Button.Icon>
-                                </ui:Button>
-                            </Grid>
+            <!-- Left: section nav -->
+            <ui:Card Grid.Column="0" Padding="6,10" Margin="0,0,12,0" VerticalAlignment="Stretch">
+                <StackPanel>
+                    <TextBlock Text="SECTIONS" Opacity="0.45" FontSize="10.5" FontWeight="SemiBold" Margin="12,2,0,6" />
+                    <ItemsControl ItemsSource="{Binding Sections}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Button Style="{StaticResource NavRow}" Content="{Binding Title}" Click="NavClick" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </ui:Card>
 
-                            <TextBlock Text="Aegis name (server id, no spaces)" Opacity="0.85" Margin="0,0,0,2" />
-                            <Grid Margin="0,0,0,8">
-                                <ui:TextBox Text="{Binding AegisName, UpdateSourceTrigger=PropertyChanged}" PlaceholderText="Crown_Of_Valor" />
-                                <ui:Button HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,4,0"
-                                           Appearance="Transparent" MinWidth="0" Padding="4,2"
-                                           Command="{Binding FillNameFromAegisCommand}" ToolTip="Fill display name from this">
-                                    <ui:Button.Icon><ui:SymbolIcon Symbol="Sparkle24" FontSize="14" /></ui:Button.Icon>
-                                </ui:Button>
-                            </Grid>
-
+            <!-- Center: schema-hosted editor (only applicable fields, conditional by Type) -->
+            <ScrollViewer x:Name="CenterScroll" Grid.Column="1" VerticalScrollBarVisibility="Auto" Padding="0,0,8,0">
+                <StackPanel TextElement.FontSize="12">
+                    <!-- Item ID: auto-allocated; the "Change ID" button opens the validating dialog. -->
+                    <ui:Card Margin="0,0,0,6" Padding="10,7">
+                        <StackPanel TextElement.FontSize="11.5">
+                            <TextBlock Text="Item ID" Opacity="0.85" Margin="0,0,0,2" />
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="12" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <StackPanel Grid.Column="0">
-                                    <TextBlock Text="Type" Opacity="0.85" Margin="0,0,0,2" />
-                                    <ComboBox ItemsSource="{Binding Types}" SelectedItem="{Binding Type}" HorizontalAlignment="Stretch" />
-                                </StackPanel>
-                                <StackPanel Grid.Column="2">
-                                    <TextBlock Text="Slots" Opacity="0.85" Margin="0,0,0,2" />
-                                    <ui:TextBox Text="{Binding Slots, UpdateSourceTrigger=PropertyChanged}" Width="70" />
-                                </StackPanel>
+                                <ui:TextBox Grid.Column="0" Text="{Binding ItemIdInput, Mode=OneWay}" IsReadOnly="True" />
+                                <ui:Button Grid.Column="1" Content="Change ID" Command="{Binding ChangeIdCommand}" Margin="6,0,0,0" />
                             </Grid>
                         </StackPanel>
                     </ui:Card>
 
-                    <ui:Card Padding="14,12" Margin="0,0,0,10">
-                        <StackPanel>
-                            <TextBlock Text="Equip &amp; sprite" Style="{StaticResource SectionTitle}" FontWeight="SemiBold" Margin="0,0,0,8" />
-                            <TextBlock Text="Equip location" Opacity="0.85" Margin="0,0,0,2" />
-                            <ComboBox ItemsSource="{Binding Locations}" SelectedItem="{Binding SelectedLocation}"
-                                      DisplayMemberPath="Label" HorizontalAlignment="Stretch" Margin="0,0,0,8" />
+                    <ItemsControl x:Name="GroupsHost" ItemsSource="{Binding ServerEditor.Groups}">
+                        <ItemsControl.ItemContainerStyle>
+                            <Style TargetType="ContentPresenter" BasedOn="{StaticResource SectionEnter}" />
+                        </ItemsControl.ItemContainerStyle>
+                    </ItemsControl>
 
-                            <StackPanel Visibility="{Binding IsHeadgear, Converter={StaticResource BoolToVis}}">
+                    <!-- Client / Appearance section (the itemInfo side) -->
+                    <ui:Card x:Name="AppearanceCard" Margin="0,0,0,6" Padding="10,5">
+                        <StackPanel TextElement.FontSize="11.5">
+                            <TextBlock Text="Appearance" Style="{StaticResource TitleSection}" Margin="0,0,0,3" />
+                            <TextBlock Text="How the item looks in the client (written to itemInfo_C.lua)." Opacity="0.55" FontSize="11" Margin="0,0,0,8" />
+
+                            <TextBlock Text="Icon resource name (the .bmp base name)" Opacity="0.85" Margin="0,0,0,2" />
+                            <Grid Margin="0,0,0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <ui:TextBox Grid.Column="0" Text="{Binding IconResource, UpdateSourceTrigger=PropertyChanged}" />
+                                <ui:Button Grid.Column="1" Content="Browse…" Command="{Binding BrowseIconCommand}" Margin="6,0,0,0">
+                                    <ui:Button.Icon><ui:SymbolIcon Symbol="Search24" /></ui:Button.Icon>
+                                </ui:Button>
+                            </Grid>
+
+                            <TextBlock Text="Description" Opacity="0.85" Margin="0,0,0,2" />
+                            <ui:TextBox Text="{Binding Description, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True"
+                                        MinHeight="90" MaxHeight="180" FontFamily="Consolas"
+                                        VerticalScrollBarVisibility="Auto" Margin="0,0,0,8" />
+
+                            <ui:ToggleSwitch Content="Costume" IsChecked="{Binding Costume}" Margin="0,0,0,4" />
+
+                            <StackPanel Visibility="{Binding IsHeadgear, Converter={StaticResource BoolToVis}}" Margin="0,6,0,0">
                                 <TextBlock Text="Headgear sprite name (auto-allocates the View id)" Opacity="0.85" Margin="0,0,0,2" />
-                                <ui:TextBox Text="{Binding SpriteName, UpdateSourceTrigger=PropertyChanged}" PlaceholderText="crown_valor" />
-                                <TextBlock Opacity="0.55" FontSize="11" TextWrapping="Wrap" Margin="0,4,0,0"
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <ui:TextBox Grid.Column="0" Text="{Binding SpriteName, UpdateSourceTrigger=PropertyChanged}" />
+                                    <ui:Button Grid.Column="1" Content="Browse…" Command="{Binding BrowseSpriteCommand}" Margin="6,0,0,0">
+                                        <ui:Button.Icon><ui:SymbolIcon Symbol="Search24" /></ui:Button.Icon>
+                                    </ui:Button>
+                                </Grid>
+                                <TextBlock Opacity="0.5" FontSize="11" TextWrapping="Wrap" Margin="0,4,0,0"
                                            Text="Registers an ACCESSORY_ID in accessoryid.lub / accname.lub (loose files) and sets the item's View." />
                             </StackPanel>
-                        </StackPanel>
-                    </ui:Card>
-
-                    <ui:Card Padding="14,12">
-                        <StackPanel>
-                            <TextBlock Text="Stats, requirements &amp; script" Style="{StaticResource SectionTitle}" FontWeight="SemiBold" Margin="0,0,0,8" />
-                            <UniformGrid Columns="3">
-                                <StackPanel Margin="0,0,10,8"><TextBlock Text="Buy (z)" Opacity="0.8" FontSize="11" Margin="0,0,0,2" />
-                                    <ui:TextBox Text="{Binding Buy, UpdateSourceTrigger=LostFocus}" /></StackPanel>
-                                <StackPanel Margin="0,0,10,8"><TextBlock Text="Sell (z)" Opacity="0.8" FontSize="11" Margin="0,0,0,2" />
-                                    <ui:TextBox Text="{Binding Sell, UpdateSourceTrigger=LostFocus}" /></StackPanel>
-                                <StackPanel Margin="0,0,0,8"><TextBlock Text="Weight" Opacity="0.8" FontSize="11" Margin="0,0,0,2" />
-                                    <ui:TextBox Text="{Binding Weight, UpdateSourceTrigger=LostFocus}" /></StackPanel>
-                                <StackPanel Margin="0,0,10,8"><TextBlock Text="Attack" Opacity="0.8" FontSize="11" Margin="0,0,0,2" />
-                                    <ui:TextBox Text="{Binding Attack, UpdateSourceTrigger=LostFocus}" /></StackPanel>
-                                <StackPanel Margin="0,0,10,8"><TextBlock Text="Magic Atk" Opacity="0.8" FontSize="11" Margin="0,0,0,2" />
-                                    <ui:TextBox Text="{Binding MagicAttack, UpdateSourceTrigger=LostFocus}" /></StackPanel>
-                                <StackPanel Margin="0,0,0,8"><TextBlock Text="Defense" Opacity="0.8" FontSize="11" Margin="0,0,0,2" />
-                                    <ui:TextBox Text="{Binding Defense, UpdateSourceTrigger=LostFocus}" /></StackPanel>
-                                <StackPanel Margin="0,0,10,8"><TextBlock Text="Range" Opacity="0.8" FontSize="11" Margin="0,0,0,2" />
-                                    <ui:TextBox Text="{Binding Range, UpdateSourceTrigger=LostFocus}" /></StackPanel>
-                                <StackPanel Margin="0,0,10,8"><TextBlock Text="Weapon Lv" Opacity="0.8" FontSize="11" Margin="0,0,0,2" />
-                                    <ui:TextBox Text="{Binding WeaponLevel, UpdateSourceTrigger=LostFocus}" /></StackPanel>
-                                <StackPanel Margin="0,0,0,8"><TextBlock Text="Req. Level" Opacity="0.8" FontSize="11" Margin="0,0,0,2" />
-                                    <ui:TextBox Text="{Binding EquipLevelMin, UpdateSourceTrigger=LostFocus}" /></StackPanel>
-                            </UniformGrid>
-
-                            <ui:ToggleSwitch Content="Refineable" IsChecked="{Binding Refineable}" Margin="0,2,0,8" />
-
-                            <TextBlock Text="Bonus script (optional)" Opacity="0.85" Margin="0,0,0,2" />
-                            <ui:TextBox Text="{Binding Script, UpdateSourceTrigger=LostFocus}" AcceptsReturn="True"
-                                        MinHeight="70" MaxHeight="140" FontFamily="Consolas" VerticalScrollBarVisibility="Auto"
-                                        PlaceholderText="bonus bStr,3;" />
                         </StackPanel>
                     </ui:Card>
                 </StackPanel>
             </ScrollViewer>
 
-            <!-- ===== Step 2: client side (top-aligned, like step 1) ===== -->
-            <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,0,8,0"
-                          Visibility="{Binding IsStep2, Converter={StaticResource BoolToVis}}">
-                <Grid VerticalAlignment="Top">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="3*" MinWidth="320" />
-                        <ColumnDefinition Width="16" />
-                        <ColumnDefinition Width="2*" MinWidth="260" />
-                    </Grid.ColumnDefinitions>
-
-                    <StackPanel Grid.Column="0">
-                        <ui:Card Padding="14,12" TextElement.FontSize="12">
-                            <StackPanel>
-                                <TextBlock Text="Client appearance" Style="{StaticResource SectionTitle}" FontWeight="SemiBold" Margin="0,0,0,8" />
-                                <TextBlock Opacity="0.55" FontSize="11" Margin="0,0,0,8"
-                                           Text="{Binding Name, StringFormat='Display name in-game: {0}'}" />
-
-                                <TextBlock Text="Icon resource name (the .bmp base name)" Opacity="0.85" Margin="0,0,0,2" />
-                                <ui:TextBox Text="{Binding IconResource, UpdateSourceTrigger=PropertyChanged}"
-                                            PlaceholderText="crown_valor" Margin="0,0,0,8" />
-
-                                <TextBlock Text="Description" Opacity="0.85" Margin="0,0,0,2" />
-                                <ui:TextBox Text="{Binding Description, UpdateSourceTrigger=LostFocus}" AcceptsReturn="True"
-                                            MinHeight="100" MaxHeight="180" FontFamily="Consolas"
-                                            VerticalScrollBarVisibility="Auto" Margin="0,0,0,8" />
-
-                                <ui:ToggleSwitch Content="Costume" IsChecked="{Binding Costume}" />
+            <!-- Right: live preview + safety -->
+            <ScrollViewer Grid.Column="3" VerticalScrollBarVisibility="Auto">
+                <StackPanel>
+                    <!-- Success banner -->
+                    <Border CornerRadius="8" Padding="14,12" Margin="0,0,0,10" Background="#243A2A" BorderBrush="#4E8C5E" BorderThickness="1"
+                            Visibility="{Binding JustForged, Converter={StaticResource BoolToVis}}">
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                <TextBlock Text="✓" Foreground="#7DD89B" FontSize="16" FontWeight="Bold" Margin="0,0,8,0" />
+                                <TextBlock FontWeight="SemiBold" Foreground="#CFEDD7"
+                                           Text="{Binding ForgedId, StringFormat='Forged item #{0}'}" VerticalAlignment="Center" />
                             </StackPanel>
-                        </ui:Card>
-                    </StackPanel>
+                            <TextBlock Opacity="0.75" FontSize="11.5" TextWrapping="Wrap" Margin="0,0,0,8"
+                                       Text="Added to your import layer + client file. Review it, then Save to write the files (a backup is taken)." />
+                            <StackPanel Orientation="Horizontal">
+                                <ui:Button Content="Open in Server Items" Appearance="Primary" Command="{Binding OpenForgedCommand}" Margin="0,0,6,0" />
+                                <ui:Button Content="Dismiss" Command="{Binding DismissCommand}" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
 
-                    <StackPanel Grid.Column="2">
-                        <ui:Card Padding="14,12" Margin="0,0,0,10">
-                            <StackPanel>
-                                <TextBlock Text="Preview" Style="{StaticResource SectionTitle}" FontWeight="SemiBold" Margin="0,0,0,10" />
-                                <StackPanel Orientation="Horizontal">
-                                    <StackPanel Margin="0,0,16,0">
-                                        <Border Width="80" Height="80" CornerRadius="6" Background="#22000000" BorderBrush="#22FFFFFF" BorderThickness="1">
+                    <!-- Preview (in-game item window) -->
+                    <ui:Card Padding="14,12" Margin="0,0,0,10">
+                        <StackPanel>
+                            <TextBlock Text="Preview" Style="{StaticResource TitleSection}" Margin="0,0,0,10" />
+
+                            <!-- RO-style item window: icon + collection on the left, tooltip text on the right -->
+                            <Border CornerRadius="6" Background="#1A1622" BorderBrush="#33FFFFFF" BorderThickness="1" Padding="10">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="12" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <StackPanel Grid.Column="0" VerticalAlignment="Top">
+                                        <Border Width="64" Height="64" CornerRadius="4" Background="#22000000" BorderBrush="#22FFFFFF" BorderThickness="1">
                                             <Image Source="{Binding IconImage}" Stretch="None" RenderOptions.BitmapScalingMode="NearestNeighbor" />
                                         </Border>
-                                        <TextBlock Text="Icon" Opacity="0.5" FontSize="11" HorizontalAlignment="Center" Margin="0,4,0,0" />
-                                    </StackPanel>
-                                    <StackPanel>
-                                        <Border Width="120" Height="80" CornerRadius="6" Background="#22000000" BorderBrush="#22FFFFFF" BorderThickness="1">
+                                        <Border Width="64" Height="44" CornerRadius="4" Background="#22000000" BorderBrush="#22FFFFFF" BorderThickness="1" Margin="0,8,0,0">
                                             <Image Source="{Binding CollectionImage}" Stretch="Uniform" RenderOptions.BitmapScalingMode="NearestNeighbor" Margin="2" />
                                         </Border>
-                                        <TextBlock Text="Collection" Opacity="0.5" FontSize="11" HorizontalAlignment="Center" Margin="0,4,0,0" />
+                                        <TextBlock Text="Collection" Opacity="0.4" FontSize="10" HorizontalAlignment="Center" Margin="0,3,0,0" />
                                     </StackPanel>
-                                </StackPanel>
-                            </StackPanel>
-                        </ui:Card>
 
-                        <ui:Card Padding="14,12">
-                            <StackPanel>
-                                <TextBlock Text="Readiness" Style="{StaticResource SectionTitle}" FontWeight="SemiBold" Margin="0,0,0,8" />
-                                <ItemsControl ItemsSource="{Binding Checklist}">
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate>
-                                            <StackPanel Orientation="Horizontal" Margin="0,3">
-                                                <Border Width="8" Height="8" CornerRadius="4" Margin="0,4,8,0" VerticalAlignment="Top">
-                                                    <Border.Style>
-                                                        <Style TargetType="Border">
-                                                            <Setter Property="Background" Value="#8893A0" />
-                                                            <Style.Triggers>
-                                                                <DataTrigger Binding="{Binding State}" Value="ok">
-                                                                    <Setter Property="Background" Value="#5AD27A" />
-                                                                </DataTrigger>
-                                                                <DataTrigger Binding="{Binding State}" Value="warn">
-                                                                    <Setter Property="Background" Value="#E0A030" />
-                                                                </DataTrigger>
-                                                            </Style.Triggers>
-                                                        </Style>
-                                                    </Border.Style>
-                                                </Border>
-                                                <TextBlock Text="{Binding Text}" TextWrapping="Wrap" FontSize="12" Opacity="0.9" />
-                                            </StackPanel>
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
+                                    <!-- Parchment tooltip — the real in-game item window text, rendered exactly as it
+                                         is written to itemInfo_C.lua (name + slots + the color-coded description). -->
+                                    <Border Grid.Column="2" Background="#EFEAD9" CornerRadius="4" Padding="9,7" VerticalAlignment="Top">
+                                        <StackPanel>
+                                            <TextBlock Foreground="Black" FontWeight="Bold" FontSize="13" TextWrapping="Wrap">
+                                                <Run Text="{Binding DisplayName, Mode=OneWay}" /><Run Text="{Binding SlotCount, Mode=OneWay, StringFormat=' [{0}]'}" />
+                                            </TextBlock>
+                                            <TextBlock x:Name="DescPreview" Foreground="Black" FontSize="11.5" TextWrapping="Wrap" Margin="0,5,0,0"
+                                                       Visibility="{Binding HasDescription, Converter={StaticResource BoolToVis}}" />
+                                            <Border Height="1" Background="#33000000" Margin="0,8" />
+                                            <TextBlock Foreground="#6B6657" FontSize="11" Text="{Binding PreviewId, StringFormat='Item ID: {0}'}" />
+                                        </StackPanel>
+                                    </Border>
+                                </Grid>
+                            </Border>
+                        </StackPanel>
+                    </ui:Card>
+
+                    <!-- Readiness -->
+                    <ui:Card Padding="14,12" Margin="0,0,0,10">
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                <TextBlock Text="Readiness" Style="{StaticResource TitleSection}" VerticalAlignment="Center" />
+                                <ui:SymbolIcon Symbol="ShieldCheckmark24" FontSize="14" Foreground="#7DD89B" Margin="10,0,4,0" VerticalAlignment="Center" />
+                                <TextBlock Text="Safe by design" FontSize="11.5" Opacity="0.85" VerticalAlignment="Center" />
+                                <ui:SymbolIcon Symbol="Info24" FontSize="13" Opacity="0.6" Margin="4,0,0,0" VerticalAlignment="Center" Cursor="Help">
+                                    <ui:SymbolIcon.ToolTip>
+                                        <ToolTip MaxWidth="280">
+                                            <TextBlock TextWrapping="Wrap"
+                                                       Text="Your base files stay untouched. A dated backup is taken before any save. Only the entry you create is written, spliced into your existing files — comments, field order and line endings are preserved." />
+                                        </ToolTip>
+                                    </ui:SymbolIcon.ToolTip>
+                                </ui:SymbolIcon>
                             </StackPanel>
-                        </ui:Card>
-                    </StackPanel>
-                </Grid>
+                            <ItemsControl ItemsSource="{Binding Checklist}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Orientation="Horizontal" Margin="0,3">
+                                            <Border Width="8" Height="8" CornerRadius="4" Margin="0,4,8,0" VerticalAlignment="Top">
+                                                <Border.Style>
+                                                    <Style TargetType="Border">
+                                                        <Setter Property="Background" Value="#8893A0" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding State}" Value="ok">
+                                                                <Setter Property="Background" Value="#5AD27A" />
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding State}" Value="warn">
+                                                                <Setter Property="Background" Value="#E0A030" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Border.Style>
+                                            </Border>
+                                            <TextBlock Text="{Binding Text}" TextWrapping="Wrap" FontSize="11.5" Opacity="0.9" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </ui:Card>
+
+                    <!-- What will be written (always visible, live, animated border) -->
+                    <Border CornerRadius="8" Padding="14,12" Background="#14000000" BorderThickness="1.5">
+                        <Border.BorderBrush>
+                            <SolidColorBrush x:Name="LiveBorderBrush" Color="#559B7BE0" />
+                        </Border.BorderBrush>
+                        <Border.Triggers>
+                            <EventTrigger RoutedEvent="Border.Loaded">
+                                <BeginStoryboard>
+                                    <Storyboard RepeatBehavior="Forever" AutoReverse="True">
+                                        <ColorAnimation Storyboard.TargetName="LiveBorderBrush" Storyboard.TargetProperty="Color"
+                                                        From="#339B7BE0" To="#AA6FB1FF" Duration="0:0:1.7" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </EventTrigger>
+                        </Border.Triggers>
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,2">
+                                <TextBlock Text="What will be written" Style="{StaticResource TitleSection}" VerticalAlignment="Center" />
+                                <Ellipse Width="7" Height="7" Fill="#7DD89B" Margin="8,1,0,0" VerticalAlignment="Center" />
+                                <TextBlock Text="live" FontSize="10" Opacity="0.5" Margin="4,0,0,0" VerticalAlignment="Center" />
+                            </StackPanel>
+                            <TextBlock FontSize="11" Opacity="0.85" Margin="0,0,0,8">
+                                <Run Text="→ " Foreground="#9B7BE0" /><Run Text="{Binding WriteTargets, Mode=OneWay}" FontFamily="Consolas" />
+                            </TextBlock>
+
+                            <TextBlock Text="server · item_db.yml" Opacity="0.5" FontSize="10.5" Margin="0,0,0,2" />
+                            <Border CornerRadius="4" Background="#1209121A" BorderBrush="#22FFFFFF" BorderThickness="1" Padding="6">
+                                <TextBox Text="{Binding ServerYamlPreview, Mode=OneWay}" IsReadOnly="True" BorderThickness="0"
+                                         Background="Transparent" FontFamily="Consolas" FontSize="10.5" TextWrapping="NoWrap"
+                                         HorizontalScrollBarVisibility="Auto" MaxHeight="200" VerticalScrollBarVisibility="Auto" />
+                            </Border>
+                            <TextBlock Text="client · itemInfo_C.lua" Opacity="0.5" FontSize="10.5" Margin="0,8,0,2" />
+                            <Border CornerRadius="4" Background="#12091A12" BorderBrush="#22FFFFFF" BorderThickness="1" Padding="6">
+                                <TextBox Text="{Binding ClientLuaPreview, Mode=OneWay}" IsReadOnly="True" BorderThickness="0"
+                                         Background="Transparent" FontFamily="Consolas" FontSize="10.5" TextWrapping="NoWrap"
+                                         HorizontalScrollBarVisibility="Auto" MaxHeight="200" VerticalScrollBarVisibility="Auto" />
+                            </Border>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
             </ScrollViewer>
         </Grid>
     </DockPanel>

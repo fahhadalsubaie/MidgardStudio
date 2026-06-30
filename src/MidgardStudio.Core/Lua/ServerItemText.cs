@@ -43,6 +43,27 @@ public static class ServerItemText
         return string.Join(", ", jobs.Select(j => JobNames.TryGetValue(j, out var v) ? v : j));
     }
 
+    /// <summary>The combined "who can use this" phrase — the job-class tier (item_db <c>Classes</c>) prefixed
+    /// onto the jobs, e.g. Classes {Upper} + Jobs {Archer} → "Transcendent Archer". Null when the item is
+    /// unrestricted (All/empty classes AND All/empty jobs) so callers can omit the line entirely.</summary>
+    public static string? ClassLabel(ISet<string>? classes, ISet<string>? jobs)
+    {
+        string? tier = ClassTierLabel(classes);
+        string? job = JobsLabel(jobs);
+        if (tier is null) return job;
+        if (job is null) return tier;
+        return $"{tier} {job}";
+    }
+
+    private static string? ClassTierLabel(ISet<string>? classes)
+    {
+        if (classes is null || classes.Count == 0) return null;
+        var parts = classes.Where(c => !string.Equals(c, "All", StringComparison.Ordinal))
+                           .Select(c => ClassTiers.TryGetValue(c, out var v) ? v : c)
+                           .ToList();
+        return parts.Count == 0 ? null : string.Join(", ", parts);
+    }
+
     /// <summary>Headgear position(s) (Upper / Middle / Lower), or null when not headgear.</summary>
     public static string? PositionLabel(ISet<string>? locations)
     {
@@ -95,7 +116,8 @@ public static class ServerItemText
         ["1hSword"] = "One-Handed Sword", ["2hSword"] = "Two-Handed Sword",
         ["1hSpear"] = "One-Handed Spear", ["2hSpear"] = "Two-Handed Spear",
         ["1hAxe"] = "One-Handed Axe", ["2hAxe"] = "Two-Handed Axe",
-        ["Mace"] = "Mace", ["Staff"] = "One-Handed Staff", ["2hStaff"] = "Two-Handed Staff",
+        ["Mace"] = "Mace", ["2hMace"] = "Two-Handed Mace",
+        ["Staff"] = "One-Handed Staff", ["2hStaff"] = "Two-Handed Staff",
         ["Bow"] = "Bow", ["Knuckle"] = "Knuckle", ["Musical"] = "Musical Instrument",
         ["Whip"] = "Whip", ["Book"] = "Book", ["Katar"] = "Katar",
         ["Revolver"] = "Revolver", ["Rifle"] = "Rifle", ["Gatling"] = "Gatling Gun",
@@ -114,5 +136,13 @@ public static class ServerItemText
         ["BardDancer"] = "Bard/Dancer", ["KagerouOboro"] = "Kagerou/Oboro",
         ["SoulLinker"] = "Soul Linker", ["StarGladiator"] = "Star Gladiator",
         ["SuperNovice"] = "Super Novice",
+    };
+
+    // item_db Classes token → display tier (mirrors ItemEnums.Classes; "All" is dropped as "no tier").
+    private static readonly Dictionary<string, string> ClassTiers = new(StringComparer.Ordinal)
+    {
+        ["Normal"] = "Normal", ["Upper"] = "Transcendent", ["Baby"] = "Baby",
+        ["Third"] = "Third Class", ["Third_Upper"] = "Third Class (Trans)", ["Third_Baby"] = "Third Class (Baby)",
+        ["Fourth"] = "Fourth Class", ["All_Upper"] = "All Transcendent", ["All_Baby"] = "All Baby", ["All_Third"] = "All Third Class",
     };
 }

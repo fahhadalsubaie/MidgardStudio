@@ -794,7 +794,7 @@ public partial class ShellViewModel : ObservableObject
     [RelayCommand]
     private void OpenForge()
     {
-        _forgeVm ??= new ForgeViewModel(_session, _schemas, _clientItems, _images, _sprite, NavigateTo);
+        _forgeVm ??= new ForgeViewModel(_session, _schemas, _clientItems, _images, _sprite, _references, _referenceIndex, _appSettings, NavigateTo);
         ActiveWorkspace = null;
         CurrentContent = _forgeVm;
     }

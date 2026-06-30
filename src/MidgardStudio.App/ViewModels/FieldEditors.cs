@@ -134,6 +134,27 @@ public sealed class IntFieldEditorViewModel : FieldEditorViewModel
     }
 }
 
+/// <summary>Editor for a 64-bit field (e.g. mob EXP, read server-side as uint64). Backed by
+/// <see cref="DbRecord.GetLong"/> so values above int32 (high-rate renewal EXP) are editable, unlike the
+/// int-clamping <see cref="IntFieldEditorViewModel"/>.</summary>
+public sealed class LongFieldEditorViewModel : FieldEditorViewModel
+{
+    public LongFieldEditorViewModel(DbRecord r, FieldSchema f, FieldEditorContext c) : base(r, f, c) { }
+
+    public long Value
+    {
+        get => Record.GetLong(FieldName);
+        set
+        {
+            // Honor optional bounds (declared as int) without truncating the 64-bit payload.
+            if (Field.Min is { } mn && value < mn) value = mn;
+            if (Field.Max is { } mx && value > mx) value = mx;
+            if (value != Value) Commit(value);
+            OnPropertyChanged(); // always notify so an out-of-range entry snaps back
+        }
+    }
+}
+
 /// <summary>Editor for a dual-typed skill value: a single number, or a per-level list typed as
 /// "level:value" pairs (e.g. <c>1:3, 2:5, 3:7</c>). Round-trips to either YAML form.</summary>
 public sealed class LevelIntFieldEditorViewModel : FieldEditorViewModel
@@ -169,7 +190,10 @@ public sealed class EnumFieldEditorViewModel : FieldEditorViewModel
 {
     public EnumFieldEditorViewModel(DbRecord r, FieldSchema f, FieldEditorContext c) : base(r, f, c)
     {
-        var src = f.Enum;
+        // A record-dependent EnumSelector (e.g. SubType narrowed by Type) overrides the static Enum so the
+        // dropdown only offers values valid for the current record. The form rebuilds when Type changes, so a
+        // fresh editor (with the right options) is created.
+        var src = f.EnumSelector?.Invoke(r) ?? f.Enum;
         Options = src is null
             ? Array.Empty<EnumOption>()
             : src.Values.Select(v => new EnumOption(v, src.Label(v))).ToArray();
@@ -270,7 +294,8 @@ public static class FieldEditorFactory
 {
     public static FieldEditorViewModel Create(DbRecord record, FieldSchema field, FieldEditorContext ctx) => field.Kind switch
     {
-        FieldKind.Int or FieldKind.Long => new IntFieldEditorViewModel(record, field, ctx),
+        FieldKind.Int => new IntFieldEditorViewModel(record, field, ctx),
+        FieldKind.Long => new LongFieldEditorViewModel(record, field, ctx),
         FieldKind.LevelInt => new LevelIntFieldEditorViewModel(record, field, ctx),
         FieldKind.Bool => new BoolFieldEditorViewModel(record, field, ctx),
         FieldKind.Enum => new EnumFieldEditorViewModel(record, field, ctx),

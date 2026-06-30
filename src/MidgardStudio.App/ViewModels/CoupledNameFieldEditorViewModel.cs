@@ -8,9 +8,9 @@ using MidgardStudio.Core.Schema;
 namespace MidgardStudio.App.ViewModels;
 
 /// <summary>
-/// The Name and AegisName fields, coupled with an inline auto-fill button. On the Name field the button
-/// generates the aegis name (Title_Case_With_Underscores); on the AegisName field it fills the display
-/// name (Title Case, no underscores). The two editors reference each other so the sibling box refreshes.
+/// The Name and AegisName fields, coupled with an inline copy button. The button copies the OTHER field's
+/// value into this one verbatim (Name's button pulls in the aegis name; the aegis name's button pulls in the
+/// display name) — a plain copy, not a transform. The two editors reference each other so the sibling refreshes.
 /// </summary>
 public sealed class CoupledNameFieldEditorViewModel : FieldEditorViewModel
 {
@@ -31,24 +31,30 @@ public sealed class CoupledNameFieldEditorViewModel : FieldEditorViewModel
     public string Value
     {
         get => Record.GetString(FieldName) ?? string.Empty;
-        set { if (value != Value) { Commit(value); OnPropertyChanged(); } }
+        set { var v = Normalize(value); if (v != Value) { Commit(v); OnPropertyChanged(); } }
     }
 
     public ICommand SyncCommand { get; }
 
     public string SyncTooltip => _toAegis
-        ? "Generate the aegis name from this (Title_Case_With_Underscores)"
-        : "Fill the display name from this (Title Case, spaces)";
+        ? "Copy the aegis name into here"     // on the Name field; sibling = AegisName
+        : "Copy the display name into here";  // on the AegisName field; sibling = Name
 
+    /// <summary>The aegis name is a server identifier and must never contain spaces — they become underscores.
+    /// The display name is left as typed.</summary>
+    private string Normalize(string s) => _toAegis ? s : s.Replace(' ', '_');
+
+    /// <summary>Copies the sibling field's value into THIS field, converting between the two conventions:
+    /// aegis → display name turns underscores into spaces; display name → aegis turns spaces into underscores.</summary>
     private void Sync()
     {
         if (!IsEditable) return;
-        string source = Value;
-        if (string.IsNullOrWhiteSpace(source)) return;
+        string other = Record.GetString(_siblingField) ?? string.Empty;
+        string converted = _toAegis ? other.Replace('_', ' ') : other.Replace(' ', '_');
+        if (string.IsNullOrWhiteSpace(converted) || converted == Value) return;
 
-        string result = _toAegis ? NameFormat.ToAegis(source) : NameFormat.ToDisplay(source);
-        Stack.Execute(new SetFieldCommand(Record, _siblingField, result));
-        Sibling?.Refresh();
+        Commit(converted);
+        OnPropertyChanged(nameof(Value));
         RaiseChanged();
     }
 

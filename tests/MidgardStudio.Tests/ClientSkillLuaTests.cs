@@ -416,6 +416,33 @@ public class ClientSkillLuaTests
     }
 
     [Fact]
+    public void Delay_preserves_original_key_order_skillflag_last() // audit #36
+    {
+        // HW_MAGICPOWER ships SkillCastStatDelay first, SkillFlag last — the reverse of the writer's old fixed
+        // order. An edit must re-emit it in the on-disk order, not move SkillFlag to the front.
+        string delay =
+            "SKILL_DELAY_LIST = {\n" +
+            "\t[SKID.HW_MAGICPOWER] = { SkillCastStatDelay = { 5000 }, SkillFlag = { SKFLAG_NOREDUCT } }\n" +
+            "}\n";
+        var skills = new Dictionary<string, ClientSkill>();
+        ClientSkillReader.ReadDelay(delay, skills);
+        var s = skills["HW_MAGICPOWER"];
+
+        Assert.Equal(new[] { "SkillCastStatDelay", "SkillFlag" }, s.DelayKeyOrder);
+
+        string written = ClientSkillWriter.FormatDelay(s);
+        Assert.True(written.IndexOf("SkillCastStatDelay", StringComparison.Ordinal)
+                  < written.IndexOf("SkillFlag", StringComparison.Ordinal),
+            "SkillFlag must stay after SkillCastStatDelay, matching the source order.");
+
+        // A newly-created entry (no recorded order) falls back to the default SkillFlag-first order.
+        var fresh = new ClientSkill { Constant = "X", SkillFlag = { "SKFLAG_NOREDUCT" }, CastStatDelay = { 1 } };
+        string freshOut = ClientSkillWriter.FormatDelay(fresh);
+        Assert.True(freshOut.IndexOf("SkillFlag", StringComparison.Ordinal)
+                  < freshOut.IndexOf("SkillCastStatDelay", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void LuaString_Quote_reescapes_control_chars_and_backslash() // audit #2 / #12
     {
         Assert.Equal("\"a\\nb\"", LuaString.Quote("a\nb"));    // real newline -> \n (never a raw line break)

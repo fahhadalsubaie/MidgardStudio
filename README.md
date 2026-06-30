@@ -23,7 +23,8 @@ It's a desktop app, not a web tool. No accounts, no cloud, no install. Point it 
 - **Edit every core database** in a generated, schema-driven form — no hand-writing YAML, no breaking indentation.
 - **Override safely.** Editing an official entry clones it into `import/`; the base file is read-only. Your customizations survive a server update.
 - **Forge complete custom items** — server stats, client text, slots, icon and headgear sprite — in one guided flow.
-- **Browse your GRF** read-only, with previews for images, sprites, maps, models, lua and more.
+- **Manage the Cash Shop** — organize `item_cash_db` items and their cash-point prices across the shop tabs.
+- **Browse your GRF** read-only, with 3D previews for models and maps, plus images, sprites, lua and more.
 - **Catch mistakes before you deploy** with cross-file validation (View ↔ ClassNum, Slots ↔ slotCount, dangling references).
 - **Full undo/redo**, dated backups, and three save modes (manual, timed, on-edit).
 - **Fluent dark UI**, instant search across any database, and remappable shortcuts.
@@ -36,14 +37,16 @@ Your base data is never modified. Edits go to the import/custom layer only:
 | --- | --- |
 | Server databases (items, mobs, skills, pets, combos, groups, …) | `server-db/db/import/<db>.yml` |
 | Client item text & resources | `SystemEN/itemInfo_C.lua` (`tbl_custom` / `tbl_override`) |
+| Client skill text | `lua-files/skillinfoz/*.lub` |
 | Sprite registration (headgear, monsters) | `lua-files/datainfo/*.lub` |
+| Cash shop (tabs, prices) | `server-db/db/import/item_cash.yml` |
 | Map cache | `server-db/db/import/map_cache.dat` |
 
-Supported databases: **Items**, **Mobs**, **Mob Sprite Reuse**, **Pets**, **Skills** (full SKILL_DB v4), **Item Combos**, **Item Groups**, **Achievements**, **Class Change** (Abracadabra), **Summon Groups** — plus the **Map Cache** editor.
+Supported databases: **Items**, **Mobs**, **Mob Sprite Reuse**, **Pets**, **Skills** (full SKILL_DB v4), **Item Combos**, **Item Groups**, **Achievements**, **Class Change** (Abracadabra), **Summon Groups** — plus the **Client Items** & **Client Skills** editors, the **Cash Shop Manager**, and the **Map Cache** editor.
 
 ## Get it
 
-Download `Midgard Studio.exe` from the [**Releases**](../../releases) page. It's a single self-contained file (~73 MB) — **no installer, no .NET to set up**. Double-click and run.
+Download `Midgard Studio.exe` from the [**Releases**](../../releases) page (a one-click installer is there too). It's a single self-contained file (~75 MB) — **no installer required, no .NET to set up**. Double-click and run.
 
 **Requirements:** Windows 10 / 11 (x64).
 
@@ -68,8 +71,9 @@ This is the part that matters, so it's explicit:
 
 - **Base data is read-only.** `re/`, `pre-re/` and the official `itemInfo.lua` are never written. Your edits go to the import layer only.
 - **Writes are crash-safe.** Each file is written to a temp file, the previous version is backed up, then the file is atomically swapped — a power cut can't leave a half-written database.
-- **Hand-written content is preserved.** Edits are spliced into your existing `itemInfo_C.lua`; your helper functions, comments and untouched entries are kept byte-for-byte.
+- **Only the entry you changed is rewritten.** Edits are spliced into your existing files: helper functions, comments (including notes *inside* a database's `Body:`), field order, line endings, and any fields the editor doesn't model are all kept byte-for-byte.
 - **Client encoding is respected.** Client lua is written in the client's Windows-1252 codepage, so the "Korean-looking" resource names round-trip exactly. Text that can't be represented is rejected with a clear message instead of being silently mangled.
+- **Profiles are checked before they load.** If a profile's files look like an older or unsupported format this build can't safely round-trip, you're warned (or blocked) up front — not when a save goes wrong.
 - **Your GRF is never written.** Sprite and lua edits are exported as loose files into a `data\` folder mirroring the GRF's internal path — you pack them into your GRF yourself, on your terms.
 
 ## Keyboard shortcuts

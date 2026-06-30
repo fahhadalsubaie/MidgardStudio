@@ -35,13 +35,17 @@ public static class MobDbSchema
             new FieldSchema { Name = "AegisName", Label = "Aegis Name", Kind = FieldKind.String, Group = GId, Description = "Server name; also the client sprite name.", IsRequired = true, Unique = true, MaxLength = 24, MaxLengthSeverity = ValidationSeverity.Error },
             new FieldSchema { Name = "Name", Label = "Name", Kind = FieldKind.String, IsDisplay = true, Group = GId, MaxLength = 24 },
             new FieldSchema { Name = "JapaneseName", Label = "Japanese Name", Kind = FieldKind.String, Group = GId },
+            // The colored on-screen MVP/boss label (e.g. "<Red Pepper>"), capped to NAME_LENGTH (24).
+            new FieldSchema { Name = "Title", Label = "Title", Kind = FieldKind.String, Group = GId, MaxLength = 24 },
             FieldSchema.Int("Level", "Level", group: GId),
 
             FieldSchema.Int("Hp", "HP", group: GStats),
             FieldSchema.Int("Sp", "SP", group: GStats),
-            FieldSchema.Int("BaseExp", "Base EXP", group: GStats),
-            FieldSchema.Int("JobExp", "Job EXP", group: GStats),
-            FieldSchema.Int("MvpExp", "MVP EXP", group: GStats),
+            // EXP is read server-side as uint64 (t_exp), capped at MAX_EXP = INT64_MAX on renewal — so it must
+            // be Long, not Int, or a high-rate value above 2.1B can't be entered/edited (it would clamp to int32).
+            new FieldSchema { Name = "BaseExp", Label = "Base EXP", Kind = FieldKind.Long, Default = 0L, Group = GStats },
+            new FieldSchema { Name = "JobExp", Label = "Job EXP", Kind = FieldKind.Long, Default = 0L, Group = GStats },
+            new FieldSchema { Name = "MvpExp", Label = "MVP EXP", Kind = FieldKind.Long, Default = 0L, Group = GStats },
             FieldSchema.Int("Str", "STR", group: GStats),
             FieldSchema.Int("Agi", "AGI", group: GStats),
             FieldSchema.Int("Vit", "VIT", group: GStats),
@@ -72,6 +76,8 @@ public static class MobDbSchema
             FieldSchema.Int("DamageTaken", "Damage Taken %", 100, GBehavior),
             new FieldSchema { Name = "Ai", Label = "AI", Kind = FieldKind.String, Default = "06", Group = GBehavior },
             FieldSchema.EnumField("Class", "Class", CommonEnums.MobClass, "Normal", GBehavior),
+            // uint16 spawn-group id (HP/loot sharing). Optional; only emitted when set.
+            new FieldSchema { Name = "GroupId", Label = "Group ID", Kind = FieldKind.Int, Default = 0, Group = GBehavior, Min = 0, Max = 65535 },
             FieldSchema.FlagsField("Modes", "Modes", CommonEnums.MobModes, GBehavior),
 
             new FieldSchema { Name = "MvpDrops", Label = "MVP Drops", Kind = FieldKind.ObjectList, ObjectSchema = DropElement, Group = GDrops, IsSearchable = false, HideInForm = true },

@@ -90,6 +90,59 @@ public class ItemYamlRoundTripTests
     }
 
     [Fact]
+    public void BoolMap_exclusions_emit_all_except_and_roundtrip()
+    {
+        var schema = ItemDbSchema.Instance;
+        var r = new DbRecord(schema);
+        r.SetRaw("Id", 40100);
+        r.SetRaw("AegisName", "AllButAcolyte");
+        r.SetRaw("Name", "AllButAcolyte");
+        r.SetRaw("Type", "Weapon");
+        r.SetRaw("SubType", "1hSword");
+        r.SetRaw("Locations", new HashSet<string>(StringComparer.Ordinal) { "Right_Hand" });
+        var jobs = new BoolMap(new[] { "All" });
+        jobs.Excluded.Add("Acolyte"); // All jobs EXCEPT Acolyte
+        r.SetRaw("Jobs", jobs);
+
+        var file = new DbFile { HeaderType = "ITEM_DB", HeaderVersion = 3 };
+        file.Records.Add(r);
+
+        string yaml = new YamlDbWriter().WriteToString(schema, file);
+        Assert.Contains("All: true", yaml);
+        Assert.Contains("Acolyte: false", yaml);
+        Assert.True(yaml.IndexOf("All: true", StringComparison.Ordinal) < yaml.IndexOf("Acolyte: false", StringComparison.Ordinal),
+            "All must be emitted before the exception (rAthena applies All first).");
+
+        // Read back: the exclusion is preserved (not dropped), and isn't reported as an enabled job.
+        DbRecord back = new YamlDbReader().Read(yaml, schema).Records.Single();
+        var bm = back.GetBoolMap("Jobs")!;
+        Assert.Contains("All", bm);
+        Assert.Contains("Acolyte", bm.Excluded);
+        Assert.DoesNotContain("Acolyte", bm);
+
+        // Idempotent write.
+        var file2 = new DbFile { HeaderType = "ITEM_DB", HeaderVersion = 3 };
+        file2.Records.Add(back);
+        Assert.Equal(yaml, new YamlDbWriter().WriteToString(schema, file2));
+    }
+
+    [Fact]
+    public void BoolMap_clone_preserves_and_isolates_exclusions()
+    {
+        var jobs = new BoolMap(new[] { "All" });
+        jobs.Excluded.Add("Acolyte");
+        var r = new DbRecord(ItemDbSchema.Instance);
+        r.SetRaw("Jobs", jobs);
+
+        var bm = r.DeepClone().GetBoolMap("Jobs")!;
+        Assert.Contains("All", bm);
+        Assert.Contains("Acolyte", bm.Excluded);
+
+        bm.Excluded.Add("Archer");                 // mutating the clone must not touch the source
+        Assert.DoesNotContain("Archer", jobs.Excluded);
+    }
+
+    [Fact]
     public void Reads_real_item_db_equip()
     {
         string path = Path.Combine(WorkspaceConfigService.DefaultRepoRoot, "server-db", "db", "re", "item_db_equip.yml");

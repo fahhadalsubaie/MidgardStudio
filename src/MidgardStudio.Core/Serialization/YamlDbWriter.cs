@@ -239,6 +239,15 @@ public sealed class YamlDbWriter
                 Scalar(emitter, "true");
             }
         }
+        // Exclusions (token: false) for the "all-except" pattern. Emitted AFTER the includes — the universal
+        // "All" is already first via the enum-order pass above, which is the order rAthena applies.
+        if (set is BoolMap bm)
+        {
+            foreach (var key in field.Enum?.Values ?? Array.Empty<string>())
+                if (bm.Excluded.Contains(key) && emitted.Add(key)) { Key(emitter, key); Scalar(emitter, "false"); }
+            foreach (var key in bm.Excluded)
+                if (emitted.Add(key)) { Key(emitter, key); Scalar(emitter, "false"); }
+        }
         emitter.Emit(new MappingEnd());
     }
 
@@ -295,7 +304,9 @@ public sealed class YamlDbWriter
                 return value is not ScriptValue sv || sv.IsEmpty;
             case FieldKind.Flags:
             case FieldKind.BoolMap:
-                return value is not ISet<string> set || set.Count == 0;
+                if (value is not ISet<string> set) return true;
+                if (set is BoolMap bm && bm.Excluded.Count > 0) return false; // keep "all-except" maps
+                return set.Count == 0;
             case FieldKind.Object:
                 return value is not DbRecord rec || field.ObjectSchema is null || !RecordHasContent(rec, field.ObjectSchema);
             case FieldKind.ObjectList:

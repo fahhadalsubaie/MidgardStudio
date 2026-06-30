@@ -224,18 +224,18 @@ public sealed class YamlDbReader
         return list;
     }
 
-    private static HashSet<string> ReadBoolSet(object raw)
+    private static BoolMap ReadBoolSet(object raw)
     {
-        var set = new HashSet<string>(StringComparer.Ordinal);
-        if (raw is Dictionary<string, object?> map)
+        var map = new BoolMap();
+        if (raw is Dictionary<string, object?> dict)
         {
-            foreach (var (key, value) in map)
+            foreach (var (key, value) in dict)
             {
-                if (ParseBool(value as string))
-                    set.Add(key);
+                if (ParseBool(value as string)) map.Add(key);
+                else map.Excluded.Add(key); // token: false → an exclusion, preserved for round-trip / "all-except"
             }
         }
-        return set;
+        return map;
     }
 
     private static List<DbRecord> ReadObjectList(object raw, FieldSchema field)

@@ -70,6 +70,10 @@ public sealed class DbRecord : ObservableObject
 
     public ISet<string>? GetSet(string field) => _values.GetValueOrDefault(field) as ISet<string>;
 
+    /// <summary>The full tri-state bool-map (included + excluded tokens) when one is stored, else null. Use
+    /// <see cref="GetSet"/> for the common "which tokens are enabled" question.</summary>
+    public BoolMap? GetBoolMap(string field) => _values.GetValueOrDefault(field) as BoolMap;
+
     public DbRecord? GetObject(string field) => _values.GetValueOrDefault(field) as DbRecord;
 
     public IList<DbRecord>? GetList(string field) => _values.GetValueOrDefault(field) as IList<DbRecord>;
@@ -137,9 +141,17 @@ public sealed class DbRecord : ObservableObject
     {
         DbRecord r => r.DeepClone(),
         IList<DbRecord> list => list.Select(x => x.DeepClone()).ToList(),
+        BoolMap bm => CloneBoolMap(bm), // must precede ISet — keep the excluded ("all-except") tokens
         ISet<string> set => new HashSet<string>(set, StringComparer.Ordinal),
         LevelList lvl => lvl.Clone(),
         IList<object> scalars => scalars.ToList(),
         _ => value, // value types, string, ScriptValue (immutable)
     };
+
+    private static BoolMap CloneBoolMap(BoolMap bm)
+    {
+        var clone = new BoolMap(bm);
+        foreach (var x in bm.Excluded) clone.Excluded.Add(x);
+        return clone;
+    }
 }

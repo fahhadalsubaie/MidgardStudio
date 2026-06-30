@@ -107,7 +107,9 @@ public class ValidationRuleTests
     [Fact]
     public void Slots_above_four_is_flagged()
     {
-        var item = Item(30000, "Slotted");
+        // Slots is equip-only now, so use an equippable item (else the bounds check is skipped as not-applicable).
+        var item = Item(30000, "Slotted", "Armor");
+        item.SetRaw("Locations", new HashSet<string> { "Armor" });
         item.SetRaw("Slots", 5);
         var issues = Validate(Overlay(ItemDbSchema.Instance, item), Refs());
         Assert.True(Has(issues, "FIELD.BOUNDS", ValidationSeverity.Warning));
@@ -173,6 +175,27 @@ public class ValidationRuleTests
         var armor = Item(30000, "Test_Armor", "Armor"); // no Locations
         var issues = Validate(Overlay(ItemDbSchema.Instance, armor), Refs());
         Assert.True(Has(issues, "ITEM.EQUIP_NO_LOC", ValidationSeverity.Error));
+    }
+
+    [Fact]
+    public void Weapon_subtype_on_ammo_item_is_flagged()
+    {
+        var ammo = Item(30000, "Bad_Ammo", "Ammo");
+        ammo.SetRaw("SubType", "1hSword"); // a weapon subtype on an ammo item -> AMMO_NONE on the server
+        var issues = Validate(Overlay(ItemDbSchema.Instance, ammo), Refs());
+        Assert.True(Has(issues, "ITEM.SUBTYPE_TYPE_MISMATCH", ValidationSeverity.Warning));
+    }
+
+    [Fact]
+    public void Valid_subtype_for_type_is_not_flagged()
+    {
+        var ammo = Item(30000, "Good_Ammo", "Ammo");
+        ammo.SetRaw("SubType", "Arrow"); // AMMO_ARROW — valid
+        var weapon = Item(30001, "Good_Weapon", "Weapon");
+        weapon.SetRaw("SubType", "2hMace"); // W_2HMACE — valid (newly added)
+        weapon.SetRaw("Locations", new HashSet<string> { "Right_Hand" });
+        var issues = Validate(Overlay(ItemDbSchema.Instance, ammo, weapon), Refs());
+        Assert.DoesNotContain(issues, i => i.RuleId == "ITEM.SUBTYPE_TYPE_MISMATCH");
     }
 
     [Fact]

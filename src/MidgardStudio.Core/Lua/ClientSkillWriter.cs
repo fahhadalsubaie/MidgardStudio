@@ -45,21 +45,33 @@ public static class ClientSkillWriter
         return sb.ToString();
     }
 
+    // Default SKILL_DELAY_LIST key order for a newly-created entry (no recorded source order).
+    private static readonly string[] DefaultDelayOrder =
+        { "SkillFlag", "SkillCastFixedDelay", "SkillCastStatDelay", "SkillGlobalPostDelay", "SkillSinglePostDelay" };
+
     public static string FormatDelay(ClientSkill s)
     {
-        var parts = new List<string>();
-        if (s.SkillFlag.Count > 0) parts.Add($"SkillFlag = {{ {string.Join(", ", s.SkillFlag)} }}");
-        if (s.CastFixedDelay.Count > 0) parts.Add($"SkillCastFixedDelay = {IntArray(s.CastFixedDelay)}");
-        if (s.CastStatDelay.Count > 0) parts.Add($"SkillCastStatDelay = {IntArray(s.CastStatDelay)}");
-        if (s.GlobalPostDelay.Count > 0) parts.Add($"SkillGlobalPostDelay = {IntArray(s.GlobalPostDelay)}");
-        if (s.SinglePostDelay.Count > 0) parts.Add($"SkillSinglePostDelay = {IntArray(s.SinglePostDelay)}");
+        // Build each present key's formatted part, then emit in the original on-disk order (audit #36) — a few
+        // real entries (HW_MAGICPOWER) place SkillFlag last; falling back to the default order for new entries.
+        var parts = new Dictionary<string, string>(System.StringComparer.Ordinal);
+        if (s.SkillFlag.Count > 0) parts["SkillFlag"] = $"SkillFlag = {{ {string.Join(", ", s.SkillFlag)} }}";
+        if (s.CastFixedDelay.Count > 0) parts["SkillCastFixedDelay"] = $"SkillCastFixedDelay = {IntArray(s.CastFixedDelay)}";
+        if (s.CastStatDelay.Count > 0) parts["SkillCastStatDelay"] = $"SkillCastStatDelay = {IntArray(s.CastStatDelay)}";
+        if (s.GlobalPostDelay.Count > 0) parts["SkillGlobalPostDelay"] = $"SkillGlobalPostDelay = {IntArray(s.GlobalPostDelay)}";
+        if (s.SinglePostDelay.Count > 0) parts["SkillSinglePostDelay"] = $"SkillSinglePostDelay = {IntArray(s.SinglePostDelay)}";
+
+        var ordered = new List<string>();
+        foreach (var k in s.DelayKeyOrder)
+            if (parts.ContainsKey(k) && !ordered.Contains(k)) ordered.Add(k);
+        foreach (var k in DefaultDelayOrder)
+            if (parts.ContainsKey(k) && !ordered.Contains(k)) ordered.Add(k);
 
         var sb = new StringBuilder();
         sb.Append($"\t[SKID.{s.Constant}] = {{\n");
-        for (int i = 0; i < parts.Count; i++)
+        for (int i = 0; i < ordered.Count; i++)
         {
-            sb.Append("\t\t").Append(parts[i]);
-            sb.Append(i < parts.Count - 1 ? ",\n" : "\n");
+            sb.Append("\t\t").Append(parts[ordered[i]]);
+            sb.Append(i < ordered.Count - 1 ? ",\n" : "\n");
         }
         sb.Append("\t},\n");
         return sb.ToString();

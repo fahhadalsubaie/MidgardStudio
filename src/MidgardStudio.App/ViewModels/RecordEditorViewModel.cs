@@ -31,12 +31,18 @@ public sealed partial class RecordEditorViewModel : ObservableObject
     // PetEquip shows only when the Mob is a pet). It lazily builds only the db a predicate actually queries
     // (e.g. the small pet_db) — unlike live validation, which uses the empty _liveRefs to stay keystroke-cheap.
     private readonly IReferenceIndex? _applicabilityRefs;
+    // When true (the Item Forge), a rebuild clears values that no longer apply (e.g. Attack on a now-Etc item)
+    // and resets fields whose ResetOnChangeOf trigger changed (SubType when Type changes) — so the draft never
+    // carries a stale, "set but doesn't apply" value. The main editor leaves this off (preserve + warn).
+    private readonly bool _clearStale;
+    private readonly Dictionary<string, string?> _resetTriggers = new(StringComparer.Ordinal);
     private RecordKey _key;
 
     public RecordEditorViewModel(OverlayTable table, EditCommandStack stack,
         IReferenceResolver? references = null, ScriptCommandCatalog? catalog = null,
         Core.Workspace.ServerMode mode = Core.Workspace.ServerMode.Renewal,
-        ValidationEngine? validator = null, IReferenceIndex? applicabilityRefs = null)
+        ValidationEngine? validator = null, IReferenceIndex? applicabilityRefs = null,
+        bool clearStaleValues = false)
     {
         _table = table;
         _stack = stack;
@@ -45,6 +51,7 @@ public sealed partial class RecordEditorViewModel : ObservableObject
         _mode = mode;
         _validator = validator;
         _applicabilityRefs = applicabilityRefs;
+        _clearStale = clearStaleValues;
     }
 
     /// <summary>Whether a field shows in the form: a context-aware predicate (with the real reference index)
@@ -150,6 +157,8 @@ public sealed partial class RecordEditorViewModel : ObservableObject
         };
 
         var schema = record.Schema;
+        if (_clearStale && IsEditable) ClearStaleValues(record, schema);
+
         bool couple = schema.Field("Name") is not null && schema.Field("AegisName") is not null;
         CoupledNameFieldEditorViewModel? nameVm = null, aegisVm = null;
 
@@ -195,6 +204,35 @@ public sealed partial class RecordEditorViewModel : ObservableObject
         RunValidation(record);
     }
 
+    /// <summary>Forge-only auto-clean (see <see cref="_clearStale"/>): clears the stored value of any field that
+    /// no longer applies for the current state, and resets a field whose <see cref="FieldSchema.ResetOnChangeOf"/>
+    /// trigger changed since the last build. Uses SetRaw (no undo entry) — the draft is a scratch record.</summary>
+    private void ClearStaleValues(DbRecord record, Core.Schema.DbSchema schema)
+    {
+        foreach (var field in schema.Fields)
+        {
+            if (field.IsKey) continue;
+
+            // Reset-on-change: clear when the trigger field's value changed since the last rebuild.
+            if (field.ResetOnChangeOf is { } trigger)
+            {
+                var cur = record.GetString(trigger);
+                bool seenBefore = _resetTriggers.TryGetValue(field.Name, out var prev);
+                _resetTriggers[field.Name] = cur;
+                if (seenBefore && !string.Equals(prev, cur, StringComparison.Ordinal) && record.Has(field.Name))
+                {
+                    record.SetRaw(field.Name, null);
+                    continue;
+                }
+            }
+
+            // Inapplicable / wrong-mode modeled field still holding a value -> clear it (server would drop it).
+            if ((!Applies(field, record) || !InActiveSystem(field))
+                && record.Has(field.Name) && record.Get(field.Name) is not null)
+                record.SetRaw(field.Name, null);
+        }
+    }
+
     /// <summary>
     /// Hides fields that belong to the other ruleset (e.g. Gradable/MagicAttack are Renewal-only, so
     /// they don't appear in a Pre-Renewal profile). The value is preserved in the record either way.
@@ -218,18 +256,28 @@ public sealed partial class RecordEditorViewModel : ObservableObject
     private void OnFieldChanged()
     {
         var record = _table.GetEffective(_key);
-        if (record is not null)
+        if (record is null) { RecordChanged?.Invoke(); return; }
+
+        if (ApplicableSignature(record) != _applicableSignature)
         {
-            if (ApplicableSignature(record) != _applicableSignature)
-            {
-                Build(); // conditional fields changed (Build re-validates)
-            }
-            else
-            {
-                UpdatePreview(record);
-                RunValidation(record);
-            }
+            // A conditional field appeared/disappeared (e.g. Type=Weapon reveals SubType/Combat), so the form
+            // must rebuild. Defer it to the dispatcher: rebuilding synchronously here tears down the very
+            // control raising the change (the Type combo) in the middle of its own selection mouse-up, which
+            // re-enters WPF's Selector and throws "Can only change SelectedItems …". Running it after the
+            // event completes is re-entrancy-safe (and visually identical).
+            System.Windows.Threading.Dispatcher.CurrentDispatcher.BeginInvoke(
+                new Action(() =>
+                {
+                    if (_table.GetEffective(_key) is null) return; // record went away while queued
+                    Build(); // Build re-validates + updates preview
+                    RecordChanged?.Invoke();
+                }),
+                System.Windows.Threading.DispatcherPriority.Background);
+            return;
         }
+
+        UpdatePreview(record);
+        RunValidation(record);
         RecordChanged?.Invoke();
     }
 
