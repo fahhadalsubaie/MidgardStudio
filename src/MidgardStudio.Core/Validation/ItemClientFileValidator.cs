@@ -35,7 +35,10 @@ public static class ItemClientFileValidator
                     "Item doesn't exist in Client Items (itemInfo.lua / itemInfo_C.lua) — it will show no name or description in-game.")
                 {
                     RuleId = "XFILE.ITEM_NO_CLIENTTEXT",
-                    Fix = new QuickFix("Create client text", () => editor.CreateText(id, name, newSlots, newView), () => editor.Remove(id)),
+                    // Not Automatic: creating a client entry seeds only name/slots/view (placeholder description),
+                    // so it needs the user to finish it — apply, then jump to the new record to confirm it.
+                    Fix = new QuickFix("Create client text", () => editor.CreateText(id, name, newSlots, newView), () => editor.Remove(id))
+                        { ButtonLabel = "Create", ReviewAfter = true },
                 };
                 continue;
             }
@@ -50,7 +53,7 @@ public static class ItemClientFileValidator
                     $"Slots count mismatch — Server [{slots}], Client [{entry.SlotCount}].")
                 {
                     RuleId = "XFILE.SLOTCOUNT_MISMATCH",
-                    Fix = new QuickFix($"Set client slots to {slots}", () => editor.SetSlots(id, slots), () => editor.SetSlots(id, oldSlots)),
+                    Fix = new QuickFix($"Set client slots to {slots}", () => editor.SetSlots(id, slots), () => editor.SetSlots(id, oldSlots)) { Automatic = true },
                 };
             }
 
@@ -72,7 +75,7 @@ public static class ItemClientFileValidator
                     "For headgear and garments these must match or the equipped sprite won't appear.")
                 {
                     RuleId = "XFILE.CLASSNUM_MISMATCH",
-                    Fix = new QuickFix($"Set client ClassNum to {view}", () => editor.SetClassNum(id, view), () => editor.SetClassNum(id, oldView)),
+                    Fix = new QuickFix($"Set client ClassNum to {view}", () => editor.SetClassNum(id, view), () => editor.SetClassNum(id, oldView)) { Automatic = true },
                 };
             }
 

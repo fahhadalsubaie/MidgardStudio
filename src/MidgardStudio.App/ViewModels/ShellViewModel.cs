@@ -67,6 +67,10 @@ public partial class ShellViewModel : ObservableObject
     [ObservableProperty]
     private string _updateMessage = string.Empty;
 
+    /// <summary>The newer version (e.g. "v1.0.9"), shown prominently in the update pill's popup.</summary>
+    [ObservableProperty]
+    private string _latestVersion = string.Empty;
+
     private string _updateUrl = GitHubReleaseFeed.ReleasesPage;
     private readonly UpdateChecker _updateChecker = new(new GitHubReleaseFeed());
 
@@ -222,19 +226,20 @@ public partial class ShellViewModel : ObservableObject
     private async Task CheckForUpdatesAsync()
     {
         var info = await _updateChecker.CheckAsync(AppVersion);
-        if (info is null) return; // up to date / couldn't check — no banner
+        if (info is null) return; // up to date / couldn't check — no pill
         if (!string.IsNullOrEmpty(info.Url)) _updateUrl = info.Url; // else keep the releases-page fallback
+        LatestVersion = "v" + info.Version;
         UpdateMessage = $"Version {info.Version} is available — you're on {AppVersion}.";
         UpdateAvailable = true;
     }
 
-    /// <summary>Opens the release page in the browser and dismisses the banner.</summary>
+    /// <summary>Opens the release page in the browser. The pill stays (it's a standing "update available"
+    /// indicator) — it only goes away when the user is actually on the newer build.</summary>
     [RelayCommand]
     private void OpenUpdate()
     {
         try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(_updateUrl) { UseShellExecute = true }); }
         catch (Exception ex) { Serilog.Log.Warning(ex, "Could not open the releases page"); }
-        UpdateAvailable = false;
     }
 
     [RelayCommand]

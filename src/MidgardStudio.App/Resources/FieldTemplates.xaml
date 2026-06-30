@@ -701,6 +701,11 @@
                     <ui:Button Content="Run validation" Appearance="Primary" Command="{Binding RunCommand}">
                         <ui:Button.Icon><ui:SymbolIcon Symbol="CheckmarkCircle24" /></ui:Button.Icon>
                     </ui:Button>
+                    <ui:Button Content="{Binding AutoFixableCount, StringFormat='Quick Fix All ({0})'}"
+                               Command="{Binding FixAllCommand}" Margin="8,0,0,0"
+                               ToolTip="Fixes the issues that have one clear, safe solution. Anything that needs a choice from you is left untouched.">
+                        <ui:Button.Icon><ui:SymbolIcon Symbol="Sparkle24" /></ui:Button.Icon>
+                    </ui:Button>
                     <Grid Margin="12,0,0,0" VerticalAlignment="Center">
                         <Grid.Style>
                             <Style TargetType="Grid">
@@ -895,21 +900,10 @@
                                                 <ui:Button Content="Go to" Padding="8,2" FontSize="11"
                                                            Command="{Binding DataContext.OpenCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
                                                            CommandParameter="{Binding Issue}" />
-                                                <ContentControl Margin="6,0,0,0">
-                                                    <ContentControl.Style>
-                                                        <Style TargetType="ContentControl">
-                                                            <Setter Property="Visibility" Value="Visible" />
-                                                            <Style.Triggers>
-                                                                <DataTrigger Binding="{Binding Issue.Fix}" Value="{x:Null}">
-                                                                    <Setter Property="Visibility" Value="Collapsed" />
-                                                                </DataTrigger>
-                                                                <DataTrigger Binding="{Binding IsFixed}" Value="True">
-                                                                    <Setter Property="Visibility" Value="Collapsed" />
-                                                                </DataTrigger>
-                                                            </Style.Triggers>
-                                                        </Style>
-                                                    </ContentControl.Style>
-                                                    <ui:Button Content="Fix" Padding="8,2" FontSize="11" Appearance="Success"
+                                                <!-- One-click Fix only for an Automatic (deterministic) fix that isn't applied yet. -->
+                                                <ContentControl Margin="6,0,0,0"
+                                                                Visibility="{Binding CanQuickFix, Converter={StaticResource BoolToVis}}">
+                                                    <ui:Button Content="{Binding FixButtonLabel}" Padding="8,2" FontSize="11" Appearance="Success"
                                                                Command="{Binding DataContext.ApplyFixCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
                                                                CommandParameter="{Binding Issue}" />
                                                 </ContentControl>

@@ -113,7 +113,28 @@ public class ValidationRuleTests
         item.SetRaw("Slots", 5);
         var issues = Validate(Overlay(ItemDbSchema.Instance, item), Refs());
         Assert.True(Has(issues, "FIELD.BOUNDS", ValidationSeverity.Warning));
-        Assert.Contains(issues, i => i.RuleId == "FIELD.BOUNDS" && i.Fix is not null); // clamp quick-fix offered
+        // A clamp is offered, but it's a GUESSED default (the user may want a different in-range value), so it
+        // must NOT be Automatic — Auto-Fix All and the one-click Fix button never apply it unattended.
+        Assert.Contains(issues, i => i.RuleId == "FIELD.BOUNDS" && i.Fix is { Automatic: false });
+    }
+
+    [Fact]
+    public void LevelOrder_fix_is_not_automatic()
+    {
+        var item = Item(40123, "BadLevels", "Armor");
+        item.Origin = RecordOrigin.NewCustom;
+        item.SetRaw("Locations", new HashSet<string> { "Armor" });
+        item.SetRaw("EquipLevelMin", 99);
+        item.SetRaw("EquipLevelMax", 10); // min > max — two valid fixes (lower min OR raise max) → ambiguous
+        var issues = Validate(Overlay(ItemDbSchema.Instance, item), Refs());
+        Assert.Contains(issues, i => i.RuleId == "ITEM.LEVEL_ORDER" && i.Fix is { Automatic: false });
+    }
+
+    [Fact]
+    public void QuickFix_defaults_to_not_automatic()
+    {
+        Assert.False(new QuickFix("t", () => { }).Automatic);                 // must opt in
+        Assert.True(new QuickFix("t", () => { }) { Automatic = true }.Automatic);
     }
 
     // ---- Enum membership ----

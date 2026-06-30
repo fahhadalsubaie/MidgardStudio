@@ -37,7 +37,7 @@ public static class ClientSkillValidator
                     string oldAegis = skill.Aegis;
                     issues.Add(new ValidationIssue(ValidationSeverity.Warning, DbId, key, "Aegis",
                         $"SKILL_INFO_LIST name '{skill.Aegis}' doesn't match the key SKID.{skill.Constant}.")
-                    { RuleId = "CSKILL.NAME_MISMATCH", Fix = new QuickFix($"Set name to '{skill.Constant}'", () => skill.Aegis = skill.Constant, () => skill.Aegis = oldAegis) });
+                    { RuleId = "CSKILL.NAME_MISMATCH", Fix = new QuickFix($"Set name to '{skill.Constant}'", () => skill.Aegis = skill.Constant, () => skill.Aegis = oldAegis) { Automatic = true } });
                 }
 
                 // Only flag an explicit, invalid MaxLv. A skill with NO MaxLv field is valid (the official

@@ -38,6 +38,57 @@ public partial class MainWindow : FluentWindow
         ApplyShortcuts();
     }
 
+    /// <summary>Closes the update popup after the user picks an action (the bound command does the rest).</summary>
+    private void OnUpdateActionClicked(object sender, RoutedEventArgs e) => UpdateToggle.IsChecked = false;
+
+    // The update pill sits in the title-bar region, which WPF-UI's ClientAreaBorder reports to the OS as
+    // caption (HTCAPTION) — so a click there starts a window drag instead of reaching the pill, and
+    // WindowChrome.IsHitTestVisibleInChrome is ignored by WPF-UI. We intercept WM_NCHITTEST and return
+    // HTCLIENT while the cursor is over the pill, so the OS delivers a normal click that WPF then routes to it.
+    private const int WM_NCHITTEST = 0x0084;
+    private const int HTCLIENT = 1;
+    private const int GWLP_WNDPROC = -4;
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern IntPtr CallWindowProc(IntPtr prev, IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
+    [System.Runtime.InteropServices.DllImport("user32.dll", SetLastError = true)]
+    private static extern IntPtr SetWindowLongPtr(IntPtr hWnd, int idx, IntPtr newLong);
+
+    private delegate IntPtr WndProc(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
+    private WndProc? _subclass; // kept alive for the window's lifetime
+    private IntPtr _oldProc;
+
+    // WPF-UI's ClientAreaBorder owns WM_NCHITTEST and reports the whole title bar as caption (drag), ignoring
+    // WindowChrome.IsHitTestVisibleInChrome — and its HwndSource hook overrides ours. So we subclass the window
+    // proc itself: for NCHITTEST over the update pill we return HTCLIENT before WPF-UI ever sees the message;
+    // everything else is forwarded untouched. This makes the pill's region a normal client click.
+    protected override void OnSourceInitialized(EventArgs e)
+    {
+        base.OnSourceInitialized(e);
+        var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+        _subclass = SubclassProc;
+        _oldProc = SetWindowLongPtr(hwnd, GWLP_WNDPROC,
+            System.Runtime.InteropServices.Marshal.GetFunctionPointerForDelegate(_subclass));
+    }
+
+    private IntPtr SubclassProc(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam)
+    {
+        if (msg == WM_NCHITTEST && UpdateToggle is { IsVisible: true })
+        {
+            int lp = lParam.ToInt32();
+            double sx = (short)(lp & 0xFFFF), sy = (short)((lp >> 16) & 0xFFFF);
+            try
+            {
+                Point tl = UpdateToggle.PointToScreen(new Point(0, 0));
+                Point br = UpdateToggle.PointToScreen(new Point(UpdateToggle.ActualWidth, UpdateToggle.ActualHeight));
+                if (sx >= tl.X && sx <= br.X && sy >= tl.Y && sy <= br.Y)
+                    return new IntPtr(HTCLIENT); // over the pill → client, so the click reaches the ToggleButton
+            }
+            catch { /* visual not ready */ }
+        }
+        return CallWindowProc(_oldProc, hWnd, msg, wParam, lParam);
+    }
+
     /// <summary>Focuses the active database list's search box (the "find in list" shortcut).</summary>
     private void FocusListSearch()
     {

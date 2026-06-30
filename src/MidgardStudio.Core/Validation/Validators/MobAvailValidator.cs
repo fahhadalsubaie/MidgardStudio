@@ -62,6 +62,7 @@ public sealed class MobAvailValidator : IRecordValidator
     {
         if (record.Origin == RecordOrigin.Base) return null; // never edit base data
         var old = record.Get(field);
-        return new QuickFix($"Clear {field}", () => record.Remove(field), () => record.SetRaw(field, old));
+        // Deterministic: the field doesn't apply in this context, so removing it is the single correct fix.
+        return new QuickFix($"Clear {field}", () => record.Remove(field), () => record.SetRaw(field, old)) { Automatic = true };
     }
 }

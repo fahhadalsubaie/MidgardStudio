@@ -106,24 +106,102 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <!-- Logo, title and version pill all live in the Header (one StackPanel) so the gaps between them are
-             equal — the TitleBar.Icon slot adds its own uncontrollable spacing. Title="" since the Header is
-             the visible title (WPF-UI hides its own Title when a Header is set). -->
-        <ui:TitleBar Grid.Row="0" Title="">
-            <ui:TitleBar.Header>
-                <!-- Negative left margin cancels WPF-UI TitleBar's internal content inset so the logo lines up
-                     with where "File" starts in the menu bar below. -->
-                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="-12,0,0,0">
-                    <Image Source="/Assets/logo.png" Width="20" Height="20" VerticalAlignment="Center" />
-                    <TextBlock Text="Midgard Studio" Margin="10,0,0,0" Foreground="#ECECF4" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center" />
-                    <!-- Version pill (brand-violet tint to match the logo). -->
-                    <Border Margin="10,0,0,0" VerticalAlignment="Center" CornerRadius="8" Padding="7,1"
-                            Background="#2A2140" BorderBrush="#4C3C72" BorderThickness="1">
-                        <TextBlock Text="{Binding AppVersion}" Foreground="#BBA9E6" FontSize="11" FontWeight="Medium" />
-                    </Border>
-                </StackPanel>
-            </ui:TitleBar.Header>
-        </ui:TitleBar>
+        <!-- The title bar provides the window chrome + caption buttons; its branding is drawn by the overlay
+             below (Title="" so it shows no text/icon of its own). -->
+        <ui:TitleBar Grid.Row="0" Title="" />
+
+        <!-- Branding overlay (logo · title · version · update pill) drawn ON TOP of the title bar. The logo,
+             title and version are hit-test-invisible so the window still drags when grabbed by them; only the
+             pill takes clicks. (A clickable control inside ui:TitleBar.Header gets swallowed by WPF-UI's caption
+             drag — see wiki/gotchas/wpf-mvvm.md — so it lives here instead.) -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="13,0,0,0">
+            <Image Source="/Assets/logo.png" Width="20" Height="20" VerticalAlignment="Center" IsHitTestVisible="False" />
+            <TextBlock Text="Midgard Studio" Margin="10,0,0,0" Foreground="#ECECF4" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center" IsHitTestVisible="False" />
+            <!-- Version pill (brand-violet tint to match the logo). -->
+            <Border Margin="10,0,0,0" VerticalAlignment="Center" CornerRadius="8" Padding="7,1"
+                    Background="#2A2140" BorderBrush="#4C3C72" BorderThickness="1" IsHitTestVisible="False">
+                <TextBlock Text="{Binding AppVersion}" Foreground="#BBA9E6" FontSize="11" FontWeight="Medium" />
+            </Border>
+
+            <!-- Update pill — electric animated border; click for the new version + release link. The window's
+                 WM_NCHITTEST hook (MainWindow.xaml.cs) returns HTCLIENT over this pill so the title-bar caption
+                 doesn't swallow the click (WPF-UI's ClientAreaBorder ignores WindowChrome.IsHitTestVisibleInChrome). -->
+            <!-- Brush + effect live on the ToggleButton itself (mutable, element-level) and the Loaded storyboard
+                 animates THEM with no Storyboard.TargetName — a ControlTemplate EventTrigger can't resolve template
+                 names (Freezable OR element), so we animate the styled element directly, like SectionEnter. -->
+            <ToggleButton x:Name="UpdateToggle" Margin="10,0,0,0" VerticalAlignment="Center" Cursor="Hand"
+                          Focusable="False" BorderThickness="1.3" Background="#2E1D4A">
+                <ToggleButton.BorderBrush>
+                    <SolidColorBrush Color="#8A5CF0" />
+                </ToggleButton.BorderBrush>
+                <ToggleButton.Effect>
+                    <DropShadowEffect Color="#9B7BE0" BlurRadius="8" ShadowDepth="0" Opacity="0.55" />
+                </ToggleButton.Effect>
+                <ToggleButton.Style>
+                    <Style TargetType="ToggleButton">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="ToggleButton">
+                                    <Border CornerRadius="9" Padding="9,2"
+                                            Background="{TemplateBinding Background}"
+                                            BorderBrush="{TemplateBinding BorderBrush}"
+                                            BorderThickness="{TemplateBinding BorderThickness}">
+                                        <StackPanel Orientation="Horizontal">
+                                            <ui:SymbolIcon Symbol="ArrowDownload24" FontSize="12" Foreground="#ECE3FF" VerticalAlignment="Center" />
+                                            <TextBlock Text="Update Available" Foreground="#F4EEFF" FontSize="11" FontWeight="SemiBold" Margin="5,0,0,0" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Border>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding UpdateAvailable}" Value="True">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                            <EventTrigger RoutedEvent="Loaded">
+                                <BeginStoryboard>
+                                    <Storyboard RepeatBehavior="Forever" AutoReverse="True">
+                                        <ColorAnimation Storyboard.TargetProperty="(Control.BorderBrush).(SolidColorBrush.Color)"
+                                                        From="#6FD0FF" To="#D07BFF" Duration="0:0:1.1" />
+                                        <ColorAnimation Storyboard.TargetProperty="(UIElement.Effect).(DropShadowEffect.Color)"
+                                                        From="#6FD0FF" To="#D07BFF" Duration="0:0:1.1" />
+                                        <DoubleAnimation Storyboard.TargetProperty="(UIElement.Effect).(DropShadowEffect.BlurRadius)"
+                                                        From="6" To="17" Duration="0:0:1.1" />
+                                        <DoubleAnimation Storyboard.TargetProperty="(UIElement.Effect).(DropShadowEffect.Opacity)"
+                                                        From="0.45" To="0.95" Duration="0:0:1.1" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </EventTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </ToggleButton.Style>
+            </ToggleButton>
+
+            <!-- Click-through popup: the new version + a link to the release page. -->
+            <Popup PlacementTarget="{Binding ElementName=UpdateToggle}" Placement="Bottom" StaysOpen="False"
+                   AllowsTransparency="True" PopupAnimation="Fade" VerticalOffset="6" HorizontalOffset="-4"
+                   IsOpen="{Binding IsChecked, ElementName=UpdateToggle, Mode=TwoWay}">
+                <Border Background="#1C1730" BorderBrush="#5A47A0" BorderThickness="1" CornerRadius="11" Padding="16,14" Margin="10" MaxWidth="300">
+                    <Border.Effect><DropShadowEffect BlurRadius="22" ShadowDepth="3" Opacity="0.55" Color="#000000" /></Border.Effect>
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                            <ui:SymbolIcon Symbol="Sparkle24" Foreground="#C9B6FF" FontSize="15" VerticalAlignment="Center" />
+                            <TextBlock Text="Update available" FontWeight="SemiBold" Foreground="#F2ECFF" FontSize="14" Margin="8,0,0,0" VerticalAlignment="Center" />
+                        </StackPanel>
+                        <TextBlock Foreground="#E8DEFF" FontSize="20" FontWeight="Bold" Text="{Binding LatestVersion}" />
+                        <TextBlock Text="{Binding UpdateMessage}" Foreground="#B3A4DC" FontSize="12" TextWrapping="Wrap" Margin="0,2,0,12" />
+                        <StackPanel Orientation="Horizontal">
+                            <ui:Button Content="View release" Appearance="Primary" Command="{Binding OpenUpdateCommand}" Click="OnUpdateActionClicked">
+                                <ui:Button.Icon><ui:SymbolIcon Symbol="Open24" /></ui:Button.Icon>
+                            </ui:Button>
+                            <!-- Dismiss only closes this popup; it never hides the pill. -->
+                            <ui:Button Content="Dismiss" Margin="8,0,0,0" Click="OnUpdateActionClicked" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+            </Popup>
+        </StackPanel>
 
         <!-- ===== Top menu bar (replaces the old top-right icon cluster) ===== -->
         <Border Grid.Row="1" Padding="6,1" BorderBrush="#1AFFFFFF" BorderThickness="0,0,0,1">
@@ -358,35 +436,7 @@
             </Grid>
         </Border>
 
-        <!-- Update banner: shown when a newer GitHub release exists; links to the releases page. -->
-        <Border Grid.Row="2" Margin="12,8,16,0" CornerRadius="8" Padding="14,8"
-                Background="#15331E" BorderBrush="#2C6B43" BorderThickness="1">
-            <Border.Style>
-                <Style TargetType="Border">
-                    <Setter Property="Visibility" Value="Collapsed" />
-                    <Style.Triggers>
-                        <DataTrigger Binding="{Binding UpdateAvailable}" Value="True">
-                            <Setter Property="Visibility" Value="Visible" />
-                        </DataTrigger>
-                    </Style.Triggers>
-                </Style>
-            </Border.Style>
-            <DockPanel LastChildFill="False">
-                <ui:SymbolIcon Symbol="ArrowDownload24" DockPanel.Dock="Left" Foreground="#5FD08A" FontSize="18" VerticalAlignment="Center" Margin="2,0,12,0" />
-                <StackPanel DockPanel.Dock="Left" VerticalAlignment="Center">
-                    <TextBlock Text="Update available" FontWeight="SemiBold" Foreground="#EAF7EF" />
-                    <TextBlock Text="{Binding UpdateMessage}" Foreground="#B9D8C6" FontSize="12" />
-                </StackPanel>
-                <Button DockPanel.Dock="Right" Width="30" Height="30" Padding="0" Margin="8,0,0,0" VerticalAlignment="Center"
-                        Background="Transparent" BorderThickness="0" Command="{Binding DismissUpdateCommand}" ToolTip="Dismiss">
-                    <ui:SymbolIcon Symbol="Dismiss24" Foreground="#9FB8AC" FontSize="14" />
-                </Button>
-                <ui:Button DockPanel.Dock="Right" Content="View release" Appearance="Primary" VerticalAlignment="Center"
-                           Command="{Binding OpenUpdateCommand}">
-                    <ui:Button.Icon><ui:SymbolIcon Symbol="Open24" /></ui:Button.Icon>
-                </ui:Button>
-            </DockPanel>
-        </Border>
+        <!-- (The old update banner was replaced by the animated "Update Available" pill in the title-bar header.) -->
 
         <Grid Grid.Row="3">
             <Grid.ColumnDefinitions>

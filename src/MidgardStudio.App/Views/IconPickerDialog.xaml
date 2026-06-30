@@ -27,8 +27,10 @@
                     <ControlTemplate TargetType="TabItem">
                         <Border x:Name="root" CornerRadius="8" Padding="18,9" Background="#16FFFFFF"
                                 BorderBrush="#26FFFFFF" BorderThickness="1">
+                            <!-- Animated via property paths on "root": a ControlTemplate name scope can't target a
+                                 named Freezable (the effect) by Storyboard.TargetName. -->
                             <Border.Effect>
-                                <DropShadowEffect x:Name="rootGlow" Color="#9B7BE0" BlurRadius="0" ShadowDepth="0" Opacity="0" />
+                                <DropShadowEffect Color="#9B7BE0" BlurRadius="0" ShadowDepth="0" Opacity="0" />
                             </Border.Effect>
                             <ContentPresenter ContentSource="Header" HorizontalAlignment="Center" VerticalAlignment="Center"
                                               TextElement.FontSize="13" TextElement.FontWeight="SemiBold" />
@@ -44,11 +46,11 @@
                                 <Trigger.EnterActions>
                                     <BeginStoryboard x:Name="glowSb">
                                         <Storyboard RepeatBehavior="Forever" AutoReverse="True">
-                                            <ColorAnimation Storyboard.TargetName="rootGlow" Storyboard.TargetProperty="Color"
+                                            <ColorAnimation Storyboard.TargetName="root" Storyboard.TargetProperty="(UIElement.Effect).(DropShadowEffect.Color)"
                                                             From="#6FD0FF" To="#C77BFF" Duration="0:0:0.9" />
-                                            <DoubleAnimation Storyboard.TargetName="rootGlow" Storyboard.TargetProperty="Opacity"
+                                            <DoubleAnimation Storyboard.TargetName="root" Storyboard.TargetProperty="(UIElement.Effect).(DropShadowEffect.Opacity)"
                                                             From="0.45" To="0.95" Duration="0:0:0.9" />
-                                            <DoubleAnimation Storyboard.TargetName="rootGlow" Storyboard.TargetProperty="BlurRadius"
+                                            <DoubleAnimation Storyboard.TargetName="root" Storyboard.TargetProperty="(UIElement.Effect).(DropShadowEffect.BlurRadius)"
                                                             From="8" To="20" Duration="0:0:0.9" />
                                         </Storyboard>
                                     </BeginStoryboard>

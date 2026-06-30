@@ -201,7 +201,7 @@ public sealed class WorkspaceValidator
                     $"Max level mismatch — Server [{sv.MaxLevel}], Client [{s.MaxLv}].")
                 {
                     RuleId = "XFILE.CSKILL_MAXLV_MISMATCH",
-                    Fix = new QuickFix($"Set client MaxLv to {sv.MaxLevel}", () => SetClientSkillMaxLv(s.Constant, sv.MaxLevel), () => SetClientSkillMaxLv(s.Constant, oldMaxLv)),
+                    Fix = new QuickFix($"Set client MaxLv to {sv.MaxLevel}", () => SetClientSkillMaxLv(s.Constant, sv.MaxLevel), () => SetClientSkillMaxLv(s.Constant, oldMaxLv)) { Automatic = true },
                 });
             }
 
