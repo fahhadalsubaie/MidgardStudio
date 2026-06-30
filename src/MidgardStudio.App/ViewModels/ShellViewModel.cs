@@ -236,11 +236,7 @@ public partial class ShellViewModel : ObservableObject
     /// <summary>Opens the release page in the browser. The pill stays (it's a standing "update available"
     /// indicator) — it only goes away when the user is actually on the newer build.</summary>
     [RelayCommand]
-    private void OpenUpdate()
-    {
-        try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(_updateUrl) { UseShellExecute = true }); }
-        catch (Exception ex) { Serilog.Log.Warning(ex, "Could not open the releases page"); }
-    }
+    private void OpenUpdate() => Common.ExternalLink.Open(_updateUrl, GitHubReleaseFeed.ReleasesPage); // http/https-only guard
 
     [RelayCommand]
     private void DismissUpdate() => UpdateAvailable = false;

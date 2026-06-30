@@ -33,20 +33,54 @@ public sealed class LuaTableParser
 
     private int FindAssignment(string name)
     {
-        // Find `name` followed (after whitespace) by '=' then (after whitespace) '{', not inside a string/comment.
-        for (int i = 0; i < _s.Length; i++)
+        // Find `name` followed (after whitespace) by '=' then (after whitespace) '{' — skipping over string
+        // literals and Lua comments so a `name = {` that appears INSIDE one (e.g. a "-- tbl_custom = { ..." note
+        // before the real table) isn't matched. The sibling LuaScan.FindTableOpen is comment-aware the same way.
+        int i = 0;
+        while (i < _s.Length)
         {
-            if (!MatchIdentifierAt(i, name)) continue;
-            int j = i + name.Length;
-            int eq = SkipWsFrom(j);
-            if (eq < _s.Length && _s[eq] == '=')
+            char c = _s[i];
+            if (c == '"' || c == '\'') { i = SkipStringFrom(i); continue; }
+            if (c == '-' && i + 1 < _s.Length && _s[i + 1] == '-') { i = SkipLuaCommentFrom(i); continue; }
+            if (MatchIdentifierAt(i, name))
             {
-                int brace = SkipWsFrom(eq + 1);
-                if (brace < _s.Length && _s[brace] == '{')
-                    return brace;
+                int eq = SkipWsFrom(i + name.Length);
+                if (eq < _s.Length && _s[eq] == '=')
+                {
+                    int brace = SkipWsFrom(eq + 1);
+                    if (brace < _s.Length && _s[brace] == '{')
+                        return brace;
+                }
             }
+            i++;
         }
         return -1;
+    }
+
+    /// <summary>Index just past a string literal starting at <paramref name="i"/> (honours <c>\"</c> escapes).</summary>
+    private int SkipStringFrom(int i)
+    {
+        char q = _s[i++];
+        while (i < _s.Length)
+        {
+            if (_s[i] == '\\') { i += 2; continue; }
+            if (_s[i] == q) return i + 1;
+            i++;
+        }
+        return i;
+    }
+
+    /// <summary>Index just past a Lua comment starting at <paramref name="i"/> (<c>--</c> line or <c>--[[ ]]</c> block).</summary>
+    private int SkipLuaCommentFrom(int i)
+    {
+        i += 2; // past "--"
+        if (i + 1 < _s.Length && _s[i] == '[' && _s[i + 1] == '[')
+        {
+            int end = _s.IndexOf("]]", i + 2, StringComparison.Ordinal);
+            return end < 0 ? _s.Length : end + 2;
+        }
+        while (i < _s.Length && _s[i] != '\n') i++;
+        return i;
     }
 
     private bool MatchIdentifierAt(int i, string name)

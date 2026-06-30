@@ -145,7 +145,8 @@ public static class ItemEnums
     public static readonly EnumSource Grade = EnumSource.Static("Grade",
         "None", "D", "C", "B", "A");
 
-    /// <summary>Bind types used across item groups/rewards.</summary>
+    /// <summary>Bind types used across item groups/rewards (resolved server-side as BOUND_&lt;value&gt;;
+    /// the character-bound token is BOUND_CHAR, so the value is "Char", not "Character").</summary>
     public static readonly EnumSource BindType = EnumSource.Static("BindType",
-        "None", "Account", "Guild", "Party", "Character");
+        "None", "Account", "Guild", "Party", "Char");
 }

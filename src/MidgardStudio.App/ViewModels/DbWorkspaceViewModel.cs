@@ -234,7 +234,7 @@ public sealed partial class DbWorkspaceViewModel : ObservableObject, IDisposable
             entry.IdentifiedDisplayName = row.Record.GetString("Name") ?? string.Empty;
         entry.SlotCount = row.Record.GetInt("Slots");
         entry.ClassNum = row.Record.GetInt("View");
-        _clientItems.Upsert(entry);
+        _session.Commands.Execute(_clientItems.SeedClientTextCommand(entry)); // undoable, so it isn't a stuck orphan
         _navigate?.Invoke("client_items", row.Key);
     }
 
@@ -358,7 +358,7 @@ public sealed partial class DbWorkspaceViewModel : ObservableObject, IDisposable
         // Items get list icons resolved from their client resource name (lazy, per visible row).
         Func<RecordKey, ImageSource?>? iconResolver = null;
         if (_schema.Id == "item_db" && _clientItems is not null && _images is not null)
-            iconResolver = key => _images.ItemIcon(_clientItems.GetOrCreate((int)key.AsInt).IdentifiedResourceName);
+            iconResolver = key => _images.ItemIcon(_clientItems.ResourceOf((int)key.AsInt)); // no-clone read per render
 
         var list = new DbListViewModel(_overlay, iconResolver);
         list.PropertyChanged += (_, e) =>
@@ -455,6 +455,10 @@ public sealed partial class DbWorkspaceViewModel : ObservableObject, IDisposable
             // Ask for the id (pre-filled with the next free one ≥ 30000); abort on cancel, reject duplicates.
             if (PromptId($"New {_schema.DisplayName} entry", "ID", NextFreeId(keyField.Name)) is not { } id) return;
             if (_overlay.GetEffective(RecordKey.Of(id)) is not null) { PortReportText = $"ID {id} already exists — pick another."; return; }
+            // Items live in two files: reject an id that's already taken on the client side too (the Item Forge
+            // checks both; the list add must match so it can't create a server item over existing client text).
+            if (_schema.Id == "item_db" && _clientItems is not null && _clientItems.Exists(id))
+            { PortReportText = $"ID {id} already has client item text — pick another."; return; }
             record.SetRaw(keyField.Name, id);
         }
         else if (keyField.Kind == FieldKind.Reference && keyField.Enum?.ReferenceDb is { } refDb)
@@ -477,9 +481,8 @@ public sealed partial class DbWorkspaceViewModel : ObservableObject, IDisposable
         if (display is not null && display.Kind == FieldKind.String && !record.Has(display.Name))
             record.SetRaw(display.Name, $"Custom {_schema.DisplayName}");
 
-        _session.Commands.Execute(new AddRecordCommand(_overlay, record));
-
-        // Items: seed a matching client-text entry so the new item is cross-file from the start.
+        // Items: seed a matching client-text entry so the new item is cross-file from the start — as ONE undo
+        // step with the record add, so undoing the add also drops the client text (no orphan, no stuck Save).
         if (_schema.Id == "item_db" && _clientItems is not null)
         {
             int id = record.GetInt(keyField.Name);
@@ -487,7 +490,15 @@ public sealed partial class DbWorkspaceViewModel : ObservableObject, IDisposable
             entry.IdentifiedDisplayName = record.GetString("Name") ?? string.Empty;
             entry.SlotCount = record.GetInt("Slots");
             entry.ClassNum = record.GetInt("View");
-            _clientItems.Upsert(entry);
+            using (_session.Commands.BeginBatch($"Add {_schema.DisplayName} {record.Key}"))
+            {
+                _session.Commands.Execute(new AddRecordCommand(_overlay, record));
+                _session.Commands.Execute(_clientItems.SeedClientTextCommand(entry));
+            }
+        }
+        else
+        {
+            _session.Commands.Execute(new AddRecordCommand(_overlay, record));
         }
 
         var row = List.CreateRow(record.Key);

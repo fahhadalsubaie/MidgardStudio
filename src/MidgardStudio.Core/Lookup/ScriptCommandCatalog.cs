@@ -11,7 +11,7 @@ public sealed record ScriptCommandEntry(string Token, string Hint);
 /// </summary>
 public sealed class ScriptCommandCatalog
 {
-    private static readonly Regex BonusRegex = new(@"\bbonus[23]?\s+(b[A-Za-z]\w+)", RegexOptions.Compiled);
+    private static readonly Regex BonusRegex = new(@"\bbonus[2-5]?\s+(b[A-Za-z]\w+)", RegexOptions.Compiled);
     private static readonly Regex CommandRegex = new(@"^\*([A-Za-z_]\w+)", RegexOptions.Compiled);
 
     public IReadOnlyList<ScriptCommandEntry> Entries { get; private set; } = Array.Empty<ScriptCommandEntry>();

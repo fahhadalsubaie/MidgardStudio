@@ -42,6 +42,8 @@ public static class ItemScriptParser
         var result = new ScriptInsights();
         if (string.IsNullOrWhiteSpace(script)) return result;
 
+        script = StripComments(script); // before the newline flatten below, so a // comment can't swallow the next line
+
         if (Complex.IsMatch(script)) result.HasComplex = true;
 
         foreach (var raw in script.Replace("\r", " ").Replace("\n", " ").Split(';'))
@@ -53,6 +55,16 @@ public static class ItemScriptParser
         }
 
         return result;
+    }
+
+    // Strip /* */ block comments then // line comments (each only to its own end-of-line) BEFORE Parse flattens
+    // newlines into spaces — otherwise a "// note" would merge with and silently swallow the next statement.
+    // ponytail: not string-literal-aware, but this only feeds the generated description text (never the saved
+    // Script), and item scripts don't put "//" inside quotes — so a worst case is one omitted description line.
+    private static string StripComments(string script)
+    {
+        script = Regex.Replace(script, @"/\*.*?\*/", " ", RegexOptions.Singleline);
+        return Regex.Replace(script, @"//[^\n]*", " ");
     }
 
     private static bool LooksIgnorable(string s) =>

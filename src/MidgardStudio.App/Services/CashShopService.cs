@@ -24,13 +24,14 @@ public sealed class CashShopService : IDirtySource
     private string? _signatureCache;
     private CashShopItemIndex? _index;
     private HashSet<string>? _knownItems;
+    private bool _importUnreadable; // import file is present but unparseable -> loaded empty; must NOT save over it
 
     public CashShopService(WorkspaceSession session, SchemaRegistry schemas)
     {
         _session = session;
         _schemas = schemas;
         // A profile switch points at a different server -> drop the cached model + item index.
-        _session.WorkspaceReloaded += () => { _data = null; _savedSignature = null; _signatureCache = null; _index = null; _knownItems = null; };
+        _session.WorkspaceReloaded += () => { _data = null; _savedSignature = null; _signatureCache = null; _index = null; _knownItems = null; _importUnreadable = false; };
         // Every cash-shop edit (and any item_db edit that changes the known items) runs through the command
         // stack — invalidate the memoized signature + item index on any stack change instead of recomputing on poll.
         _session.Commands.Changed += () => { _signatureCache = null; _index = null; _knownItems = null; };
@@ -52,6 +53,7 @@ public sealed class CashShopService : IDirtySource
                 string? baseYaml = File.Exists(BasePath) ? File.ReadAllText(BasePath) : null;     // server YAML is UTF-8
                 string? importYaml = File.Exists(ImportPath) ? File.ReadAllText(ImportPath) : null;
                 _data = CashShopYaml.Load(baseYaml, importYaml);
+                _importUnreadable = CashShopYaml.IsUnreadable(importYaml); // present-but-malformed -> block the destructive save
                 _savedSignature = _data.Signature(); // baseline = the just-loaded content
             }
             return _data;
@@ -75,6 +77,13 @@ public sealed class CashShopService : IDirtySource
     public void Save()
     {
         if (!IsDirty || _data is null) return;
+        // The import file was present but couldn't be parsed, so it loaded as empty — regenerating now would wipe
+        // the entries it still holds. Refuse (the same fail-loud rule the server YAML save and reader follow).
+        if (_importUnreadable)
+            throw new IOException(
+                "The existing item_cash.yml couldn't be parsed, so the cash shop loaded as empty. Saving now would " +
+                "overwrite that file and lose its entries — so nothing was written. Fix the YAML error in " +
+                "db/import/item_cash.yml (or restore a backup), then reload and save again.");
         string dir = Path.GetDirectoryName(ImportPath)!;
         string canonical = CashShopYaml.Write(_data);
 

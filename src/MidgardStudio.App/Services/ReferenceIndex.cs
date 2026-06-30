@@ -91,7 +91,7 @@ public sealed class ReferenceIndex : IReferenceIndex
 
     /// <summary>The field that references to a database resolve against: AegisName, else the skill
     /// Aegis (<c>Name</c>), else the string key field.</summary>
-    private static string NameField(DbSchema s) =>
+    internal static string NameField(DbSchema s) =>
         s.Field("AegisName") is not null ? "AegisName"
         : s.Field("Name") is not null ? "Name"
         : s.KeyField?.Name ?? "AegisName";

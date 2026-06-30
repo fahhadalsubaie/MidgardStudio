@@ -25,11 +25,12 @@ public sealed class ReferenceResolver : IReferenceResolver
 
         var overlay = _session.GetActiveOverlay(schema);
         string q = query.Trim();
+        string nameField = ReferenceIndex.NameField(schema); // skill_db identifies by "Name", not "AegisName" — match the index/validator
 
         var results = new List<string>(limit);
         foreach (var record in overlay.Effective())
         {
-            var aegis = record.GetString("AegisName");
+            var aegis = record.GetString(nameField);
             if (string.IsNullOrEmpty(aegis)) continue;
             if (q.Length == 0 || aegis.Contains(q, StringComparison.OrdinalIgnoreCase))
             {

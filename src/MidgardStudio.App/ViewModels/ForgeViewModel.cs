@@ -349,16 +349,9 @@ public sealed partial class ForgeViewModel : ObservableObject
             }
         }
 
-        // One undo step on the REAL stack: the record add + its sprite registration commit and revert together.
-        using (_session.Commands.BeginBatch("Forge item"))
-        {
-            _session.Commands.Execute(new AddRecordCommand(overlay, _draft));
-            if (plannedSprite is { } ps)
-                _session.Commands.Execute(new ListMutateCommand("Link accessory sprite",
-                    () => _sprite.AddPending(ps), () => _sprite.RemovePending(ps)));
-        }
-
-        // Client itemInfo — synced so View==ClassNum and Slots==slotCount by construction.
+        // Client itemInfo — synced so View==ClassNum and Slots==slotCount by construction. Built BEFORE the
+        // batch so its insert can join the SAME undo step as the record add: undoing a forge then drops the
+        // client text too, instead of orphaning it and leaving the Save button stuck lit.
         var entry = _clientItems.GetOrCreate(id);
         string name = DisplayName;
         var desc = SplitLines(Description);
@@ -371,7 +364,17 @@ public sealed partial class ForgeViewModel : ObservableObject
         entry.SlotCount = _draft.GetInt("Slots");
         entry.ClassNum = view;
         entry.Costume = Costume;
-        _clientItems.Upsert(entry);
+
+        // One undo step on the REAL stack: the record add, its sprite registration, and the client text all
+        // commit and revert together.
+        using (_session.Commands.BeginBatch("Forge item"))
+        {
+            _session.Commands.Execute(new AddRecordCommand(overlay, _draft));
+            if (plannedSprite is { } ps)
+                _session.Commands.Execute(new ListMutateCommand("Link accessory sprite",
+                    () => _sprite.AddPending(ps), () => _sprite.RemovePending(ps)));
+            _session.Commands.Execute(_clientItems.SeedClientTextCommand(entry));
+        }
 
         ForgedId = id;
         StatusMessage = $"Forged item #{id} “{name}”.{spriteNote}";

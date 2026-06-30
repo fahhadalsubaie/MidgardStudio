@@ -42,11 +42,13 @@ public static class CommonEnums
         "Illusion_Luanda", "Illusion_Frozen", "Illusion_Moonlight", "Ep16_Def", "Edda_Arunafeltz",
         "Lasagna", "Glast_Heim_Abyss", "Destroyed_Valkyrie_Realm", "Encroached_Gephenia");
 
+    // Values resolve server-side as AG_<value>; an unknown one makes the loader skip the whole achievement
+    // entry, so these must match e_achievement_group exactly (rathena/src/map/achievement.hpp).
     public static readonly EnumSource AchievementGroup = EnumSource.Static("AchievementGroup",
         "None", "Add_Friend", "Adventure", "Baby", "Battle", "Chatting", "Chatting_Count",
         "Chatting_Create", "Chatting_Dying", "Eat", "Get_Item", "Get_Zeny", "Goal_Achieve",
-        "Goal_Level", "Goal_Status", "Job_Change", "Kill_Mob_Class", "Kill_Pc", "Marry",
-        "Party", "Refine_Fail", "Refine_Success", "Taming");
+        "Goal_Level", "Goal_Status", "Job_Change", "Marry", "Party", "Enchant_Fail",
+        "Enchant_Success", "Spend_Zeny", "Taming");
 
     public static readonly EnumSource SkillType = EnumSource.Static("SkillType",
         "None", "Weapon", "Magic", "Misc");
@@ -54,8 +56,10 @@ public static class CommonEnums
     public static readonly EnumSource SkillTargetType = EnumSource.Static("SkillTargetType",
         "Passive", "Attack", "Ground", "Self", "Support", "Trap");
 
+    // DMG_NORMAL is the unset default and is not an exported script constant, so it isn't selectable — an
+    // explicit "Normal" would fail the server-side lookup and zero the skill. Absence = normal.
     public static readonly EnumSource SkillHit = EnumSource.Static("SkillHit",
-        "Normal", "Single", "Multi_Hit");
+        "Single", "Multi_Hit");
 
     public static readonly EnumSource SkillElement = EnumSource.Static("SkillElement",
         "Neutral", "Water", "Earth", "Fire", "Wind", "Poison", "Holy", "Dark", "Ghost", "Undead",

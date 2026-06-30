@@ -154,6 +154,17 @@ public sealed class ClientItemService : IDirtySource
         _signatureCache = null;
     }
 
+    /// <summary>An undoable command that seeds <paramref name="entry"/> into the client tables; undo removes it
+    /// again. For NEW ids only (the item Add/Forge paths, where the id was dup-checked as absent), so undo can
+    /// unconditionally remove. Keeping the client seed on the command stack is what lets undoing an item
+    /// Add/Forge also drop its client text — otherwise the entry orphans, the Save button stays lit, and a
+    /// phantom client entry gets written for an item the user removed.</summary>
+    // ponytail: unconditional Remove on undo is correct because callers add only fresh ids; capture prior state
+    // here if this is ever reused to overwrite an existing override.
+    public IEditCommand SeedClientTextCommand(ItemInfoEntry entry) =>
+        new ListMutateCommand($"Client text #{entry.Id}",
+            () => Upsert(entry), () => Remove(entry.Id));
+
     public void StageSave(FileTransaction tx)
     {
         if (_file is null) return;

@@ -154,7 +154,7 @@ public sealed partial class ClientItemsViewModel : ObservableObject, IDisposable
         if (keyField.Kind == FieldKind.Int)
         {
             if (PromptId($"New {Schema.DisplayName} entry", "ID", NextFreeId(keyField.Name)) is not { } id) return;
-            if (_overlay.GetEffective(RecordKey.Of(id)) is not null) return;
+            if (_overlay.GetEffective(RecordKey.Of(id)) is not null || _clientItems.Exists(id)) return; // taken on either side
             record.SetRaw(keyField.Name, id);
         }
         else record.SetRaw(keyField.Name, UniqueStringKey(keyField.Name));
@@ -163,15 +163,18 @@ public sealed partial class ClientItemsViewModel : ObservableObject, IDisposable
         if (Schema.DisplayField is { Kind: FieldKind.String } display && !record.Has(display.Name))
             record.SetRaw(display.Name, $"Custom {Schema.DisplayName}");
 
-        _session.Commands.Execute(new AddRecordCommand(_overlay, record));
-
-        // Seed a matching client-text entry so the new item is cross-file from the start.
+        // Seed a matching client-text entry so the new item is cross-file from the start — as ONE undo step with
+        // the record add, so undoing the add drops the client text too (no orphan, no stuck Save button).
         int newId = record.GetInt(keyField.Name);
         var entry = _clientItems.GetOrCreate(newId);
         entry.IdentifiedDisplayName = record.GetString("Name") ?? string.Empty;
         entry.SlotCount = record.GetInt("Slots");
         entry.ClassNum = record.GetInt("View");
-        _clientItems.Upsert(entry);
+        using (_session.Commands.BeginBatch($"Add {Schema.DisplayName} {record.Key}"))
+        {
+            _session.Commands.Execute(new AddRecordCommand(_overlay, record));
+            _session.Commands.Execute(_clientItems.SeedClientTextCommand(entry));
+        }
 
         var row = List.CreateRow(record.Key);
         List.AddRow(row);
@@ -332,7 +335,7 @@ public sealed partial class ClientItemsViewModel : ObservableObject, IDisposable
         }
 
         var list = new DbListViewModel(_overlay,
-            key => _images.ItemIcon(_clientItems.GetOrCreate((int)key.AsInt).IdentifiedResourceName),
+            key => _images.ItemIcon(_clientItems.ResourceOf((int)key.AsInt)), // no-clone read per render
             key => _clientItems.Exists((int)key.AsInt)); // only ids that actually have a client entry
         list.PropertyChanged += (_, e) =>
         {

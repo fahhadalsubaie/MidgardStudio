@@ -148,4 +148,49 @@ public class CommandStackTests
 
         Assert.Contains(issues, i => i.Field == "AegisName" && i.Severity == ValidationSeverity.Error);
     }
+
+    // A stand-in for a content-signature dirty source (e.g. ClientItemService): dirty when its entry set
+    // differs from the set captured at construction (the "saved" baseline).
+    private sealed class FakeClientText : IDirtySource
+    {
+        private readonly HashSet<int> _entries = new();
+        private readonly string _saved;
+        public FakeClientText() => _saved = Sig();
+        private string Sig() => string.Join(",", _entries.OrderBy(x => x));
+        public void Add(int id) { _entries.Add(id); DirtyChanged?.Invoke(); }
+        public void Remove(int id) { _entries.Remove(id); DirtyChanged?.Invoke(); }
+        public bool IsDirty => Sig() != _saved;
+        public event Action? DirtyChanged;
+    }
+
+    // Regression for the cross-file orphan (the BLOCKER): an item Add/Forge seeds a client-text entry. If that
+    // seed isn't on the undo stack, undoing the add leaves the client entry behind — the client dirty source
+    // stays dirty, the Save button never clears, and a phantom client entry is written for a removed item. The
+    // fix puts the seed in the SAME batch as the AddRecordCommand, so undoing the add clears EVERY dirty source.
+    [Fact]
+    public void Add_with_batched_client_seed_clears_all_dirty_sources_after_undo()
+    {
+        var overlay = new OverlayTable(ItemDbSchema.Instance, new DbLayer(), new DbLayer(), "x.yml");
+        var stack = new EditCommandStack();
+        var client = new FakeClientText();
+        var dirty = new CompositeDirtyState(stack, client);
+        Assert.False(dirty.IsDirty);
+
+        var rec = NewItem(99006);
+        using (stack.BeginBatch("Add item"))
+        {
+            stack.Execute(new AddRecordCommand(overlay, rec));
+            stack.Execute(new ListMutateCommand("seed client", () => client.Add(99006), () => client.Remove(99006)));
+        }
+        Assert.True(dirty.IsDirty);
+        Assert.Equal(1, overlay.ImportCount);
+
+        stack.Undo(); // one step reverts BOTH the overlay add and the client seed
+        Assert.False(dirty.IsDirty);    // no orphan client entry -> Save gate clears
+        Assert.Equal(0, overlay.ImportCount);
+
+        stack.Redo();
+        Assert.True(dirty.IsDirty);     // redo re-applies both
+        Assert.Equal(1, overlay.ImportCount);
+    }
 }

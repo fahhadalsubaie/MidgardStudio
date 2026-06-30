@@ -48,9 +48,12 @@ public sealed partial class SpritePickerViewModel : ObservableObject
     partial void OnSearchChanged(string value) => Filter();
     partial void OnSelectedSourceChanged(IconSourceOption? value) => _ = LoadAsync();
 
+    private int _loadGen; // bumped per source switch; a stale (superseded) load discards its results
+
     private async Task LoadAsync()
     {
         if (SelectedSource is not { } opt) return;
+        int gen = ++_loadGen;
         string src = opt.Path;
         Loading = true;
         Sprites.Clear();
@@ -59,10 +62,11 @@ public sealed partial class SpritePickerViewModel : ObservableObject
         try
         {
             var names = await Task.Run(() => { _images.OpenIconSource(src); return _images.HeadgearSpriteNames(); });
+            if (gen != _loadGen) return; // a newer source switch superseded this load
             _all = names.ToList();
             Filter();
         }
-        finally { Loading = false; }
+        finally { if (gen == _loadGen) Loading = false; }
     }
 
     private void Filter()

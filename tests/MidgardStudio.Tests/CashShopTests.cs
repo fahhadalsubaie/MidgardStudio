@@ -162,6 +162,19 @@ public class CashShopTests
         Assert.All(CashShopData.Tabs, t => Assert.Empty(data.Custom(t)));
     }
 
+    // A present-but-malformed import file loads as empty (above) — so it MUST be flagged as unreadable, so the
+    // service refuses to regenerate/save over it (a wholesale rewrite from the empty model would silently wipe
+    // every entry the file still holds). Blank/missing is legitimately empty; a valid document is readable.
+    [Fact]
+    public void IsUnreadable_flags_only_a_present_but_unparseable_file()
+    {
+        Assert.True(CashShopYaml.IsUnreadable("Body:\n  - Tab: New\n    Items:\n      - Item: Apple\n       Price: 1"));
+        Assert.True(CashShopYaml.IsUnreadable("this: is: not: valid: cash: yaml: ["));
+        Assert.False(CashShopYaml.IsUnreadable(null));
+        Assert.False(CashShopYaml.IsUnreadable("   "));
+        Assert.False(CashShopYaml.IsUnreadable(ImportYaml));
+    }
+
     private static IReadOnlySet<string> Known(params string[] names) =>
         new HashSet<string>(names, System.StringComparer.OrdinalIgnoreCase);
 

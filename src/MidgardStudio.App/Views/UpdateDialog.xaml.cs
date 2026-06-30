@@ -116,11 +116,9 @@ public partial class UpdateDialog : Window
 
     private static Color Hex(string hex) => (Color)ColorConverter.ConvertFromString(hex)!;
 
-    private static void OpenUrl(string url)
-    {
-        try { Process.Start(new ProcessStartInfo(url) { UseShellExecute = true }); }
-        catch (Exception ex) { Serilog.Log.Warning(ex, "Could not open the releases page"); }
-    }
+    // Validate the scheme before launching: the URL is the feed's server-supplied html_url, so only an
+    // http/https link is opened (a non-web scheme falls back to the fixed releases page).
+    private static void OpenUrl(string url) => Common.ExternalLink.Open(url, Services.GitHubReleaseFeed.ReleasesPage);
 
     private void OnDrag(object sender, MouseButtonEventArgs e)
     {

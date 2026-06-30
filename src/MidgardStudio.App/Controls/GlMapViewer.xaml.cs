@@ -454,6 +454,12 @@ public partial class GlMapViewer : UserControl
     {
         int v = Compile(ShaderType.VertexShader, vs);
         int f = Compile(ShaderType.FragmentShader, fs);
+        if (v == 0 || f == 0) // a shader failed to compile (already logged) — render guard skips a 0 program
+        {
+            if (v != 0) GL.DeleteShader(v);
+            if (f != 0) GL.DeleteShader(f);
+            return 0;
+        }
         int p = GL.CreateProgram();
         GL.AttachShader(p, v);
         GL.AttachShader(p, f);
@@ -462,6 +468,15 @@ public partial class GlMapViewer : UserControl
         GL.DetachShader(p, f);
         GL.DeleteShader(v);
         GL.DeleteShader(f);
+        // CreateProgram returns a non-zero name even when linking fails, so check explicitly — otherwise the
+        // viewer would UseProgram + DrawArrays a non-functional program (black preview) with nothing logged.
+        GL.GetProgram(p, GetProgramParameterName.LinkStatus, out int linked);
+        if (linked == 0)
+        {
+            Serilog.Log.Error("Map preview shader program failed to link: {Log}", GL.GetProgramInfoLog(p));
+            GL.DeleteProgram(p);
+            return 0;
+        }
         return p;
     }
 
@@ -470,6 +485,13 @@ public partial class GlMapViewer : UserControl
         int s = GL.CreateShader(type);
         GL.ShaderSource(s, src);
         GL.CompileShader(s);
+        GL.GetShader(s, ShaderParameter.CompileStatus, out int ok);
+        if (ok == 0)
+        {
+            Serilog.Log.Error("Map preview {Type} failed to compile: {Log}", type, GL.GetShaderInfoLog(s));
+            GL.DeleteShader(s);
+            return 0;
+        }
         return s;
     }
 

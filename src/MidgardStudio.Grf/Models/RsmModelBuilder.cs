@@ -169,7 +169,15 @@ public static class RsmModelBuilder
         };
     }
 
-    private static Vector3 LV(Mesh mesh, int i) { var v = mesh.Vertices[i]; return new Vector3(v.X, v.Y, v.Z); }
+    // A corrupt/hostile .rsm can carry a face vertex index past the mesh's vertex count (the parser doesn't
+    // clamp it); treat an out-of-range index as the origin instead of throwing, so a bad model degrades to a
+    // skewed preview rather than aborting the (try/caught) build.
+    private static Vector3 LV(Mesh mesh, int i)
+    {
+        if ((uint)i >= (uint)mesh.Vertices.Count) return Vector3.Zero;
+        var v = mesh.Vertices[i];
+        return new Vector3(v.X, v.Y, v.Z);
+    }
 
     private sealed class BBox
     {

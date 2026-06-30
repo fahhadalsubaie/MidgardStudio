@@ -441,20 +441,40 @@ public sealed class BackupService
             throw new InvalidDataException(
                 "This backup is empty or unreadable, so nothing was restored — your current data is untouched.");
 
+        // Read every snapshot file into memory and verify it against the manifest's SHA-256 BEFORE we touch
+        // anything. This (a) keeps a corrupt snapshot (bit-rot / hand-edited folder) from being written over the
+        // user's live data, and (b) makes the safety backup's Prune() below harmless even if it would otherwise
+        // delete THIS snapshot's folder (a near-oldest unpinned snapshot at a low retention cap) — the bytes are
+        // already in hand by then.
+        var shaByRel = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+        foreach (var mf in entry.Manifest.Files) shaByRel[mf.Path] = mf.Sha256;
+        var staged = new List<(string Target, byte[] Bytes)>();
+        void Materialize(string snapFile, string target, string rel)
+        {
+            byte[] bytes = File.ReadAllBytes(snapFile);
+            if (shaByRel.TryGetValue(rel, out var sha) && sha is not null && Sha256Hex(bytes) != sha)
+                throw new InvalidDataException(
+                    $"This backup failed its integrity check — \"{rel}\" doesn't match its recorded checksum, so " +
+                    "nothing was restored and your current data is untouched. The backup may be corrupted; try a different restore point.");
+            staged.Add((target, bytes));
+        }
+        foreach (var f in snapImport)
+            Materialize(f, Path.Combine(ImportDir, Path.GetRelativePath(importSrc, f)),
+                "import/" + Path.GetRelativePath(importSrc, f).Replace('\\', '/'));
+        if (clientFile is not null && writeTarget is not null)
+            Materialize(clientFile, writeTarget, "SystemEN/" + Path.GetFileName(clientFile));
+        foreach (var f in snapSkill)
+            Materialize(f, Path.Combine(SkillInfoDir, Path.GetFileName(f)), "skillinfoz/" + Path.GetFileName(f));
+        foreach (var f in snapSprite)
+            Materialize(f, Path.Combine(SpriteDataDir, Path.GetFileName(f)), "datainfo/" + Path.GetFileName(f));
+
         // Safety snapshot of the CURRENT state before we change anything (covers files this restore removes).
         var safety = CreateBackup("Auto-backup before restore", $"Taken automatically before restoring \"{entry.Label}\".");
 
         try
         {
             var tx = new FileTransaction(Path.Combine(ImportDir, ".midgard-backup"));
-            foreach (var f in snapImport)
-                tx.Stage(Path.Combine(ImportDir, Path.GetRelativePath(importSrc, f)), File.ReadAllBytes(f));
-            if (clientFile is not null && writeTarget is not null)
-                tx.Stage(writeTarget, File.ReadAllBytes(clientFile));
-            foreach (var f in snapSkill)
-                tx.Stage(Path.Combine(SkillInfoDir, Path.GetFileName(f)), File.ReadAllBytes(f));
-            foreach (var f in snapSprite)
-                tx.Stage(Path.Combine(SpriteDataDir, Path.GetFileName(f)), File.ReadAllBytes(f));
+            foreach (var (target, bytes) in staged) tx.Stage(target, bytes);
             Directory.CreateDirectory(ImportDir);
             tx.Commit();
 
@@ -490,6 +510,19 @@ public sealed class BackupService
                     Directory.CreateDirectory(Path.GetDirectoryName(target)!);
                     MidgardStudio.Core.IO.FileTransaction.AtomicCopy(f, target); // atomic rollback restore (audit #17)
                 }
+
+            // Also remove any live import file the (committed) restore newly ADDED that the safety snapshot
+            // doesn't have, so rollback returns import/ to exactly the safety state, not safety + leftovers.
+            if (Directory.Exists(importSrc) && Directory.Exists(ImportDir))
+            {
+                var keep = new HashSet<string>(
+                    Directory.GetFiles(importSrc, "*.yml", SearchOption.AllDirectories)
+                        .Select(f => Path.GetFullPath(Path.Combine(ImportDir, Path.GetRelativePath(importSrc, f)))),
+                    StringComparer.OrdinalIgnoreCase);
+                foreach (var live in Directory.GetFiles(ImportDir, "*.yml", SearchOption.AllDirectories))
+                    if (!keep.Contains(Path.GetFullPath(live)))
+                        try { File.Delete(live); } catch { /* best effort */ }
+            }
 
             string clientSrc = Path.Combine(safety.FolderPath, "SystemEN");
             if (!Directory.Exists(clientSrc)) clientSrc = Path.Combine(safety.FolderPath, "client");

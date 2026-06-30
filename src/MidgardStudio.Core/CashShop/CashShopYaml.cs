@@ -36,6 +36,17 @@ public static class CashShopYaml
         return data;
     }
 
+    /// <summary>True when <paramref name="yaml"/> is present (non-blank) but cannot be parsed as a cash-shop
+    /// document. <see cref="Load"/> deliberately loads such a file as empty so the editor doesn't crash — but
+    /// the caller MUST refuse to regenerate/save over it, because a wholesale rewrite from the empty model would
+    /// erase the entries the file still holds (the same fail-loud rule the server YAML path follows).</summary>
+    public static bool IsUnreadable(string? yaml)
+    {
+        if (string.IsNullOrWhiteSpace(yaml)) return false; // blank/missing -> legitimately empty, not unreadable
+        try { Deserializer.Deserialize<DocDto>(yaml); return false; }
+        catch { return true; }
+    }
+
     /// <summary>Serializes the editable (import) layer as a rAthena <c>ITEM_CASH_DB</c> document: Header +
     /// Body of the non-empty tabs (in tab order, items in order). When nothing is custom, only the Header is
     /// emitted (matching the shipped, body-less base file).</summary>

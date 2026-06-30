@@ -104,9 +104,12 @@ public sealed partial class IconPickerViewModel : ObservableObject
         ItemCountText = total > shown.Count ? $"Showing {shown.Count} of {total} — refine your search" : $"{shown.Count} item(s)";
     }
 
+    private int _grfLoadGen; // bumped per source switch; a stale (superseded) load discards its results
+
     private async Task LoadGrfAsync()
     {
         if (SelectedSource is not { } opt) return;
+        int gen = ++_grfLoadGen;
         string src = opt.Path;
         LoadingGrf = true;
         GrfIcons.Clear();
@@ -117,10 +120,11 @@ public sealed partial class IconPickerViewModel : ObservableObject
             // Enumerate the chosen source's item-icon folder off the UI thread (the GRF file-table build can
             // take a moment); thumbnails still decode lazily per visible row.
             var names = await Task.Run(() => { _images.OpenIconSource(src); return _images.IconResourceNames(); });
+            if (gen != _grfLoadGen) return; // a newer source switch superseded this load — don't show its results
             _allGrfIcons = names.Select(n => new IconGrfRow(_images, n)).ToList();
             FilterGrfIcons();
         }
-        finally { LoadingGrf = false; }
+        finally { if (gen == _grfLoadGen) LoadingGrf = false; }
     }
 
     private void FilterGrfIcons()
