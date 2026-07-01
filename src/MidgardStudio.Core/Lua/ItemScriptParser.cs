@@ -132,21 +132,27 @@ public static class ItemScriptParser
             r.Element = Capitalize(m.Groups[1].Value);
             return true;
         }
-        // bonus b<Stat>,<n>;
-        if ((m = Regex.Match(s, @"^bonus\s+b(Str|Agi|Vit|Int|Dex|Luk),([+-]?\d+)$")).Success)
+        // bonus b<Stat>,<n>;  — core stats + the six 4th-job trait stats (all render as their 3-letter
+        // uppercase name: Str->STR, Pow->POW, …). Case-insensitive, since rAthena resolves the token that way.
+        if ((m = Regex.Match(s, @"^bonus\s+b(Str|Agi|Vit|Int|Dex|Luk|Pow|Sta|Wis|Spl|Con|Crt),([+-]?\d+)$", RegexOptions.IgnoreCase)).Success)
         {
             r.Bonuses.Add($"{m.Groups[1].Value.ToUpperInvariant()} {Signed(m.Groups[2].Value)}");
             return true;
         }
-        if ((m = Regex.Match(s, @"^bonus\s+bAllStats,([+-]?\d+)$")).Success)
+        if ((m = Regex.Match(s, @"^bonus\s+bAllStats,([+-]?\d+)$", RegexOptions.IgnoreCase)).Success)
         {
             r.Bonuses.Add($"All Stats {Signed(m.Groups[1].Value)}");
+            return true;
+        }
+        if ((m = Regex.Match(s, @"^bonus\s+bAllTraitStats,([+-]?\d+)$", RegexOptions.IgnoreCase)).Success)
+        {
+            r.Bonuses.Add($"All Trait Stats {Signed(m.Groups[1].Value)}");
             return true;
         }
         // simple "<label> +n" / "+n%" bonuses
         foreach (var (rx, label, pct) in SimpleBonuses)
         {
-            if ((m = Regex.Match(s, rx)).Success)
+            if ((m = Regex.Match(s, rx, RegexOptions.IgnoreCase)).Success)
             {
                 r.Bonuses.Add($"{label} {Signed(m.Groups[1].Value)}{(pct ? "%" : string.Empty)}");
                 return true;
@@ -193,6 +199,22 @@ public static class ItemScriptParser
         (@"^bonus\s+bAspdRate,([+-]?\d+)$", "ASPD", true),
         (@"^bonus\s+bHealPower,([+-]?\d+)$", "Healing Power", true),
         (@"^bonus\s+bSpeedRate,([+-]?\d+)$", "Movement Speed", true),
+        // 4th-job derived stats (client labels) + the AP resource. The "…Rate" variant can't be shadowed by
+        // its base token because each pattern is comma-anchored (bPAtk, never matches bPAtkRate,).
+        (@"^bonus\s+bPAtk,([+-]?\d+)$", "P.Atk", false),
+        (@"^bonus\s+bPAtkRate,([+-]?\d+)$", "P.Atk", true),
+        (@"^bonus\s+bSMatk,([+-]?\d+)$", "S.MATK", false),
+        (@"^bonus\s+bSMatkRate,([+-]?\d+)$", "S.MATK", true),
+        (@"^bonus\s+bRes,([+-]?\d+)$", "Res", false),
+        (@"^bonus\s+bResRate,([+-]?\d+)$", "Res", true),
+        (@"^bonus\s+bMRes,([+-]?\d+)$", "M.Res", false),
+        (@"^bonus\s+bMResRate,([+-]?\d+)$", "M.Res", true),
+        (@"^bonus\s+bHPlus,([+-]?\d+)$", "H.Plus", false),
+        (@"^bonus\s+bHPlusRate,([+-]?\d+)$", "H.Plus", true),
+        (@"^bonus\s+bCRate,([+-]?\d+)$", "C.Rate", false),
+        (@"^bonus\s+bCRateRate,([+-]?\d+)$", "C.Rate", true),
+        (@"^bonus\s+bMaxAP,([+-]?\d+)$", "Max AP", false),
+        (@"^bonus\s+bMaxAPrate,([+-]?\d+)$", "Max AP", true),
     };
 
     private static void AddHeal(string part, string unit, ScriptInsights r)
