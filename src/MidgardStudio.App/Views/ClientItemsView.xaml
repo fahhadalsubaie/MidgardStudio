@@ -228,7 +228,15 @@
                                     <TextBlock Text="Display name" Opacity="0.8" Margin="0,0,0,2" />
                                     <ui:TextBox Text="{Binding IdentifiedDisplayName, UpdateSourceTrigger=LostFocus}" Margin="0,0,0,8" />
                                     <TextBlock Text="Resource name" Opacity="0.8" Margin="0,0,0,2" />
-                                    <ui:TextBox Text="{Binding IdentifiedResourceName, UpdateSourceTrigger=LostFocus}" Margin="0,0,0,8" />
+                                    <Grid Margin="0,0,0,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <ui:TextBox Grid.Column="0" Text="{Binding IdentifiedResourceName, UpdateSourceTrigger=LostFocus}" />
+                                        <ui:Button Grid.Column="1" Content="Browse…" Command="{Binding BrowseIconCommand}"
+                                                   Margin="6,0,0,0" ToolTip="Pick an icon from an item or a GRF/loose source" />
+                                    </Grid>
                                     <TextBlock Text="Description" Opacity="0.8" Margin="0,0,0,2" />
                                     <ui:TextBox x:Name="IdDescBox" Text="{Binding IdentifiedDescription, UpdateSourceTrigger=LostFocus}"
                                                 AcceptsReturn="True" MinHeight="120" MaxHeight="220" FontFamily="Consolas"
@@ -293,6 +301,8 @@
                                     <TextBlock Text="Headgear sprite" VerticalAlignment="Center" Opacity="0.85" Width="100" />
                                     <ui:TextBox Text="{Binding SpriteName, UpdateSourceTrigger=PropertyChanged}"
                                                 PlaceholderText="sprite base name" Width="180" Margin="0,0,8,0" />
+                                    <ui:Button Content="Browse…" Command="{Binding BrowseSpriteCommand}" Margin="0,0,8,0"
+                                               ToolTip="Browse headgear sprites (animated preview)" />
                                     <ui:Button Content="Link sprite" Command="{Binding LinkSpriteCommand}" />
                                 </StackPanel>
                                 <TextBlock Text="{Binding SpriteLinkMessage}" Opacity="0.8" Foreground="#7FD0A0" TextWrapping="Wrap"

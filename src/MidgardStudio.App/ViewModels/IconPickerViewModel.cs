@@ -8,6 +8,7 @@ using System.Windows.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using MidgardStudio.App.Services;
+using MidgardStudio.Core.Model;
 
 namespace MidgardStudio.App.ViewModels;
 
@@ -38,6 +39,26 @@ public sealed class IconGrfRow
     public IconGrfRow(GrfImageService images, string name) { _images = images; Name = name; }
     public string Name { get; }
     public ImageSource? Icon => _images.IconThumbnail(Name);
+}
+
+/// <summary>The "copy an existing item's icon" rows: every item that actually has a client icon resource,
+/// with a lazy thumbnail. Shared by the Forge and the Client Items editor so both offer the same picker.</summary>
+public static class IconPickerRows
+{
+    public static List<IconItemRow> BuildItemRows(IEnumerable<DbRecord> items, GrfImageService images, ClientItemService clientItems)
+    {
+        var rows = new List<IconItemRow>();
+        foreach (var r in items)
+        {
+            int id = r.GetInt("Id");
+            var res = clientItems.ResourceOf(id);
+            if (string.IsNullOrWhiteSpace(res)) continue; // only items that actually have an icon to copy
+            var name = r.GetString("Name");
+            rows.Add(new IconItemRow(images, id,
+                string.IsNullOrWhiteSpace(name) ? (r.GetString("AegisName") ?? string.Empty) : name!, res!));
+        }
+        return rows;
+    }
 }
 
 /// <summary>

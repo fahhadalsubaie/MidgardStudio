@@ -75,9 +75,26 @@ public sealed class SpriteLinkService : IDirtySource
         catch { return null; }
     }
 
+    /// <summary>The View id an already-registered sprite is mapped to (working state: pending ∪ accname/
+    /// accessoryid), or null when the sprite isn't in the tables yet. A sprite already present in the client
+    /// tables IS an accessory id — the caller reuses this id instead of registering a duplicate under a fresh
+    /// id (which the client can't resolve, so the item shows nothing in-game). Tolerant of a malformed file on
+    /// this read path (falls back to the pending-only match).</summary>
+    public int? FindViewForSprite(string spriteFile)
+    {
+        string sprite = NormalizeSprite(spriteFile);
+        try
+        {
+            var names = IsAvailable ? AccessoryTables.ReadNames(_codec.ReadText(AccNamePath), "AccNameTable") : new();
+            return SpriteRegistry.FindId(DiskConstants(), names, _pending, sprite);
+        }
+        catch { return SpriteRegistry.FindId(new Dictionary<string, int>(), new Dictionary<string, string>(), _pending, sprite); }
+    }
+
     /// <summary>Plans an accessory registration WITHOUT mutating state: allocates the ACCESSORY_IDs constant
     /// + id from the working state (disk ∪ pending) so two pending links can't collide. The caller commits it
-    /// through the undo stack via <see cref="AddPending"/> / <see cref="RemovePending"/>.</summary>
+    /// through the undo stack via <see cref="AddPending"/> / <see cref="RemovePending"/>. Only call this after
+    /// <see cref="FindViewForSprite"/> returns null — an already-mapped sprite must reuse its id, not re-register.</summary>
     public PendingRegistration PlanAccessory(string aegisName, string spriteFile)
     {
         var disk = DiskConstants();
@@ -86,9 +103,13 @@ public sealed class SpriteLinkService : IDirtySource
         int suffix = 1;
         while (SpriteRegistry.HasConstant(disk, _pending, constName)) constName = $"{baseName}_{suffix++}";
         int id = SpriteRegistry.NextFreeId(disk, _pending);
-        string sprite = spriteFile.StartsWith("_", StringComparison.Ordinal) ? spriteFile : "_" + spriteFile;
-        return new PendingRegistration(constName, id, sprite);
+        return new PendingRegistration(constName, id, NormalizeSprite(spriteFile));
     }
+
+    /// <summary>Canonical accname sprite value: a single leading underscore (the client prepends the gender
+    /// char). Store and lookup MUST share this so a picked name round-trips to the value in accname.lub.</summary>
+    private static string NormalizeSprite(string spriteFile) =>
+        spriteFile.StartsWith("_", StringComparison.Ordinal) ? spriteFile : "_" + spriteFile;
 
     public void AddPending(PendingRegistration p) { _pending.Add(p); RaiseDirty(); }
 

@@ -22,10 +22,17 @@ public sealed partial class ClientTextViewModel : ObservableObject
     private readonly EditCommandStack _stack;
     private readonly AppSettingsService _settings;
     private readonly Func<string, string?>? _skill;
+    private readonly Func<IReadOnlyList<IconItemRow>>? _iconRows;
     private readonly ItemInfoEntry _entry;
 
+    // True when 'server' is a synthetic stand-in for an item whose server record was deleted (a client-only
+    // "orphan"). Server-driven actions (autocomplete, Slots/View mirroring) have no real data to read, so they're
+    // disabled to avoid zeroing the client entry's real values.
+    private readonly bool _serverIsDetached;
+
     public ClientTextViewModel(DbRecord server, ClientItemService client, GrfImageService images, EditCommandStack stack,
-        AppSettingsService settings, Func<string, string?>? skillResolver = null, SpriteLinkService? sprite = null)
+        AppSettingsService settings, Func<string, string?>? skillResolver = null, SpriteLinkService? sprite = null,
+        Func<IReadOnlyList<IconItemRow>>? iconRows = null, bool serverIsDetached = false)
     {
         _server = server;
         _client = client;
@@ -34,6 +41,8 @@ public sealed partial class ClientTextViewModel : ObservableObject
         _stack = stack;
         _settings = settings;
         _skill = skillResolver;
+        _iconRows = iconRows;
+        _serverIsDetached = serverIsDetached;
 
         int id = server.GetInt("Id");
 
@@ -79,14 +88,54 @@ public sealed partial class ClientTextViewModel : ObservableObject
     [ObservableProperty]
     private string? _spriteLinkMessage;
 
+    /// <summary>Opens the icon picker (copy an existing item's icon or browse a GRF/loose source) and sets the
+    /// identified resource name from the choice. Same picker the Item Forge uses.</summary>
+    [RelayCommand]
+    private void BrowseIcon()
+    {
+        var picker = new IconPickerViewModel(_images, _iconRows?.Invoke() ?? System.Array.Empty<IconItemRow>());
+        var dlg = new Views.IconPickerDialog(picker) { Owner = System.Windows.Application.Current.MainWindow };
+        bool? ok = dlg.ShowDialog();
+        _images.CloseIconSource(); // release the picker's single-source reader + thumbnail cache
+        if (ok == true && !string.IsNullOrWhiteSpace(picker.Result))
+            IdentifiedResourceName = picker.Result!.Trim();
+    }
+
+    /// <summary>Opens the headgear sprite picker (animated previews) and sets the sprite base name; the user then
+    /// clicks Link sprite. Same picker the Item Forge uses.</summary>
+    [RelayCommand]
+    private void BrowseSprite()
+    {
+        var picker = new SpritePickerViewModel(_images);
+        var dlg = new Views.SpritePickerDialog(picker) { Owner = System.Windows.Application.Current.MainWindow };
+        bool? ok = dlg.ShowDialog();
+        _images.CloseIconSource(); // release the picker's single-source reader
+        if (ok == true && !string.IsNullOrWhiteSpace(picker.Result))
+            SpriteName = picker.Result!.Trim();
+    }
+
     [RelayCommand]
     private void LinkSprite()
     {
         if (_sprite is null || string.IsNullOrWhiteSpace(SpriteName)) return;
         try
         {
+            string sprite = SpriteName.Trim();
+
+            // Already in accname/accessoryid? Reuse that View id — registering a duplicate under a fresh id leaves
+            // the item invisible in-game (same rule as the Item Forge). Only a genuinely new sprite registers.
+            if (_sprite.FindViewForSprite(sprite) is { } existingView)
+            {
+                if (_server.Origin != RecordOrigin.Base)
+                    _stack.Execute(new SetFieldCommand(_server, "View", existingView));
+                ClassNum = existingView;
+                SpriteLinkMessage = $"'{sprite}' is already registered — reusing View {existingView}; no new entry written. "
+                    + (_server.Origin == RecordOrigin.Base ? $"Override the item and set View = {existingView}." : "Server View set.");
+                return;
+            }
+
             string aegis = _server.GetString("AegisName") ?? ("item" + _server.GetInt("Id"));
-            var planned = _sprite.PlanAccessory(aegis, SpriteName.Trim());
+            var planned = _sprite.PlanAccessory(aegis, sprite);
             // Queue the registration + the View edit as one undo step (written on Save).
             using (_stack.BeginBatch("Link accessory sprite"))
             {
@@ -134,9 +183,14 @@ public sealed partial class ClientTextViewModel : ObservableObject
     /// user's Autocomplete settings. For an official item with existing client text it restores the
     /// canonical official name/description. Also applies the default unidentified description. One undo step.
     /// </summary>
-    [RelayCommand]
+    /// <summary>Autocomplete regenerates client text FROM the server record, so it's unavailable for an orphaned
+    /// client entry (no server item) — running it would zero the real Slots/View.</summary>
+    public bool CanAutocomplete => !_serverIsDetached;
+
+    [RelayCommand(CanExecute = nameof(CanAutocomplete))]
     private void Autocomplete()
     {
+        if (_serverIsDetached) return; // no server item to autocomplete from — never touch the client entry's real values
         var cfg = _settings.Settings.Autocomplete;
         var gen = new ItemAutocomplete(cfg, _skill);
 

@@ -108,6 +108,17 @@ public sealed class ClientItemService : IDirtySource
 
     public bool Has(int id) => ClientFile.Custom.ContainsKey(id) || ClientFile.Override.ContainsKey(id) || Official.Contains(id);
 
+    /// <summary>True when the id has DELETABLE client text — a custom or override entry. A pure base-official
+    /// entry lives in the read-only base lua and can't be deleted, so it's excluded (unlike <see cref="Exists"/>).</summary>
+    public bool HasEditableClientText(int id) => ClientFile.Custom.ContainsKey(id) || ClientFile.Override.ContainsKey(id);
+
+    /// <summary>The editable (custom + override) client entries as (id, identified display name) — the source
+    /// for showing a client entry in the Client Items list even when its server item_db record no longer exists
+    /// (a "server only" delete leaves the client text as an independent, still-editable entry).</summary>
+    public IEnumerable<(int Id, string Name)> EditableClientEntries() =>
+        ClientFile.Custom.Values.Concat(ClientFile.Override.Values)
+            .Select(e => (e.Id, e.IdentifiedDisplayName ?? string.Empty));
+
     /// <summary>True only when an entry actually exists in the client lua files (custom, override, or the
     /// base itemInfo.lua) — unlike <see cref="GetOrCreate"/>, this never fabricates a blank entry. This is
     /// the source of truth for "this item exists in Client Items" (list membership, navigation, validation).</summary>
@@ -164,6 +175,21 @@ public sealed class ClientItemService : IDirtySource
     public IEditCommand SeedClientTextCommand(ItemInfoEntry entry) =>
         new ListMutateCommand($"Client text #{entry.Id}",
             () => Upsert(entry), () => Remove(entry.Id));
+
+    /// <summary>An undoable command that deletes ONLY the client itemInfo entry for <paramref name="id"/>
+    /// (the server item_db entry is independent and untouched), restoring it byte-for-byte on undo. Returns
+    /// null when there's nothing editable to delete — a pure base-official entry lives in the read-only base
+    /// itemInfo.lua, so it can't be removed (deleting an override reverts it to that base entry instead).</summary>
+    public IEditCommand? RemoveClientTextCommand(int id)
+    {
+        var existing = ClientFile.Custom.TryGetValue(id, out var c) ? c
+                     : ClientFile.Override.TryGetValue(id, out var o) ? o
+                     : null;
+        if (existing is null) return null;
+        var snapshot = existing.Clone(); // capture prior state so undo restores this exact entry
+        return new ListMutateCommand($"Delete client text #{id}",
+            () => Remove(id), () => Upsert(snapshot));
+    }
 
     public void StageSave(FileTransaction tx)
     {

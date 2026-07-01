@@ -40,4 +40,32 @@ public static class SpriteRegistry
         foreach (var p in pending) if (p.ConstantName == constantName) return true;
         return false;
     }
+
+    /// <summary>The View id already mapped to <paramref name="sprite"/> in the working state, or null when the
+    /// sprite isn't registered yet. A sprite that already lives in accname/accessoryid IS the accessory id —
+    /// re-registering it under a fresh id would create a duplicate the client can't resolve, so callers reuse
+    /// this id instead of allocating a new one. Pending links win over disk (they're the newest working state).
+    /// A sprite can be mapped to several ACCESSORY_IDs constants (the shipped tables have ~23 such sprites) —
+    /// they all render the same art, so any id is correct in-game, but the LOWEST is returned for a deterministic,
+    /// canonical result rather than depending on dictionary iteration order.
+    /// <paramref name="constants"/> is accessoryid (constant→id), <paramref name="names"/> is accname
+    /// (constant→sprite); both are keyed by the same ACCESSORY_IDs constant. Sprites are compared with
+    /// <paramref name="cmp"/> already normalized by the caller (leading-underscore form).</summary>
+    public static int? FindId(
+        IReadOnlyDictionary<string, int> constants,
+        IReadOnlyDictionary<string, string> names,
+        IEnumerable<PendingRegistration> pending,
+        string sprite,
+        StringComparison cmp = StringComparison.OrdinalIgnoreCase)
+    {
+        int? best = null;
+        foreach (var p in pending)
+            if (string.Equals(p.Sprite, sprite, cmp) && (best is null || p.Id < best)) best = p.Id;
+        if (best is not null) return best; // a pending link wins over disk
+
+        foreach (var (constName, spr) in names)
+            if (string.Equals(spr, sprite, cmp) && constants.TryGetValue(constName, out var id) && (best is null || id < best))
+                best = id;
+        return best;
+    }
 }

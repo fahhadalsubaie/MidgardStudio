@@ -62,14 +62,15 @@ public sealed class GrfImageService
     // ----- Icon picker: enumerate + decode icons from ONE chosen source (separate transient cache) -----
 
     private readonly Dictionary<string, ImageSource?> _iconPick = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, SpriteAnimation?> _spriteAnimPick = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>The configured layered sources (GRFs / loose folders) the user can pick from.</summary>
     public IReadOnlyList<string> Sources => _grf.Sources;
 
-    /// <summary>Open one source for icon browsing (clears the picker thumbnail cache).</summary>
-    public void OpenIconSource(string source) { lock (_lock) _iconPick.Clear(); _grf.OpenIconSource(source); }
+    /// <summary>Open one source for icon browsing (clears the picker thumbnail + sprite caches).</summary>
+    public void OpenIconSource(string source) { lock (_lock) { _iconPick.Clear(); _spriteAnimPick.Clear(); } _grf.OpenIconSource(source); }
 
-    public void CloseIconSource() { lock (_lock) _iconPick.Clear(); _grf.CloseIconSource(); }
+    public void CloseIconSource() { lock (_lock) { _iconPick.Clear(); _spriteAnimPick.Clear(); } _grf.CloseIconSource(); }
 
     /// <summary>Base resource names of every item icon in the chosen source (item-icon folder only, .bmp only).</summary>
     public IReadOnlyList<string> IconResourceNames() => _grf.ItemIconResourceNames();
@@ -87,6 +88,24 @@ public sealed class GrfImageService
             var img = GrfImaging.ToImageSource(_grf.ItemIconFromSource(resourceName));
             _iconPick[resourceName] = img;
             return img;
+        }
+    }
+
+    /// <summary>The animated headgear accessory sprite (by base name, female .spr + .act) from the chosen source,
+    /// so the sprite picker shows the moving sprite instead of a static frame sheet. Falls back to a single frame
+    /// when there's no .act. Cached per source (cleared on source switch) so scrolling doesn't re-decode.</summary>
+    public SpriteAnimation? HeadgearSpriteAnimation(string baseName)
+    {
+        if (string.IsNullOrWhiteSpace(baseName)) return null;
+        lock (_lock)
+        {
+            if (_spriteAnimPick.TryGetValue(baseName, out var hit)) return hit;
+            string sprPath = GrfAssetPaths.HeadgearSpriteFemale(baseName);
+            byte[]? spr = _grf.GetDataFromSource(sprPath);
+            var anim = spr is null ? null
+                : SpriteRenderer.Build(spr, _grf.GetDataFromSource(Path.ChangeExtension(sprPath, ".act")));
+            _spriteAnimPick[baseName] = anim;
+            return anim;
         }
     }
 

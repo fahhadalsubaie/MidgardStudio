@@ -101,6 +101,9 @@ public sealed partial class ClientItemsViewModel : ObservableObject, IDisposable
         var ops = new List<(ItemInfoEntry Old, ItemInfoEntry New)>();
         foreach (var row in rows)
         {
+            // Skip orphaned client entries (no server record) — there's no server data to autocomplete from, and
+            // mirroring the synthetic record's Slots/View would zero the entry's real values.
+            if (_overlay?.GetEffective(row.Key) is null) continue;
             int id = (int)row.Key.AsInt;
             var oldClone = _clientItems.GetOrCreate(id).Clone();
             var updated = oldClone.Clone();
@@ -117,18 +120,54 @@ public sealed partial class ClientItemsViewModel : ObservableObject, IDisposable
             ops.Add((oldClone, updated));
         }
 
-        _session.Commands.Execute(new ListMutateCommand($"Autocomplete {rows.Count} items",
+        if (ops.Count == 0)
+        {
+            Views.ConfirmDialog.Show("Nothing to autocomplete",
+                "The selected item(s) have no server record to autocomplete from.", yes: "OK");
+            return;
+        }
+
+        _session.Commands.Execute(new ListMutateCommand($"Autocomplete {ops.Count} items",
             () => { foreach (var op in ops) _clientItems.Upsert(op.New.Clone()); RefreshEditor(); },
             () => { foreach (var op in ops) _clientItems.Upsert(op.Old.Clone()); RefreshEditor(); }));
 
-        Views.ConfirmDialog.Show("Autocomplete complete", $"Autocompleted {rows.Count} item(s).", yes: "OK");
+        string skipped = ops.Count < rows.Count ? $" ({rows.Count - ops.Count} client-only item(s) skipped.)" : string.Empty;
+        Views.ConfirmDialog.Show("Autocomplete complete", $"Autocompleted {ops.Count} item(s).{skipped}", yes: "OK");
     }
 
-    /// <summary>Rebuilds the open editor for the current row (keeps it in sync after bulk / undo).</summary>
+    /// <summary>Builds the client-text editor for a row, wired with the shared icon picker (its "copy an existing
+    /// item's icon" rows come from the item_db overlay) and the sprite picker.</summary>
+    private ClientTextViewModel MakeEditor(DbRecord record) =>
+        new(record, _clientItems, _images, _session.Commands, _settings, Resolver(), _sprite,
+            () => _overlay is null
+                ? System.Array.Empty<IconItemRow>()
+                : IconPickerRows.BuildItemRows(_overlay.Effective(), _images, _clientItems),
+            serverIsDetached: _overlay?.GetEffective(record.Key) is null); // orphan (client-only) -> no server data to autocomplete from
+
+    /// <summary>Rebuilds the open editor for the current row (keeps it in sync after bulk / undo). Null-safe if
+    /// the selected row's server record was deleted out from under it.</summary>
     private void RefreshEditor()
     {
-        if (List?.SelectedRow is { } row)
-            Editor = new ClientTextViewModel(row.Record, _clientItems, _images, _session.Commands, _settings, Resolver(), _sprite);
+        Editor = List?.SelectedRow?.EffectiveRecord is { } rec ? MakeEditor(rec) : null;
+    }
+
+    /// <summary>Virtual rows for client entries that have NO server item_db record (e.g. after a "server only"
+    /// delete of a custom item) — so the client text stays visible and editable in this list. Each is backed by
+    /// a synthetic id-only record; the editable client fields come from the client entry itself.</summary>
+    private IEnumerable<RecordRowViewModel> OrphanClientRows()
+    {
+        if (_overlay is null) yield break;
+        string keyField = _itemSchema.KeyField?.Name ?? "Id";
+        foreach (var (id, name) in _clientItems.EditableClientEntries())
+        {
+            var key = RecordKey.Of(id);
+            if (_overlay.GetEffective(key) is not null) continue; // still has a server record -> already listed
+            var synthetic = new DbRecord(_itemSchema);
+            synthetic.SetRaw(keyField, id);
+            if (!string.IsNullOrEmpty(name)) synthetic.SetRaw("Name", name);
+            yield return new RecordRowViewModel(_overlay, key,
+                k => _images.ItemIcon(_clientItems.ResourceOf((int)k.AsInt)), synthetic);
+        }
     }
 
     private bool _skillResolved;
@@ -199,14 +238,57 @@ public sealed partial class ClientItemsViewModel : ObservableObject, IDisposable
         _syncItems?.Invoke();
     }
 
+    /// <summary>Deletes the selected item's CLIENT itemInfo text (server and client are independent). Always
+    /// confirms; when the item also has a server entry it offers to remove both sides in one step. A deleted
+    /// custom client entry drops out of this client-filtered list; deleting an override reverts to base text.</summary>
     [RelayCommand]
     private void DeleteEntry()
     {
-        if (_overlay is null || List?.SelectedRow is not { } row) return;
-        if (_overlay.OriginOf(row.Key) == RecordOrigin.Base) return; // base entries are read-only
-        if (_overlay.GetEffective(row.Key) is not { } import) return;
-        _session.Commands.Execute(new RemoveImportCommand(_overlay, import));
-        List.SyncWithOverlay();
+        if (List?.SelectedRow is not { } row) return;
+        int id = (int)row.Key.AsInt;
+
+        var clientCmd = _clientItems.RemoveClientTextCommand(id); // null when there's no deletable (custom/override) client text
+        bool hasServer = _overlay is not null
+            && _overlay.OriginOf(row.Key) != RecordOrigin.Base
+            && _overlay.GetEffective(row.Key) is not null;
+
+        bool alsoServer;
+        if (clientCmd is not null && hasServer)
+        {
+            var choice = Views.ConfirmDialog.Choose("Delete client text",
+                $"Delete client text for #{id}?\n\nThis item also has a server entry (item_db).",
+                primary: "Delete both", alternate: "Client only");
+            if (choice == Views.ConfirmDialog.Choice.Cancel) return;
+            alsoServer = choice == Views.ConfirmDialog.Choice.Primary;
+        }
+        else if (clientCmd is not null)
+        {
+            if (!Views.ConfirmDialog.Show("Delete client text", $"Delete client text for #{id}?", yes: "Delete")) return;
+            alsoServer = false;
+        }
+        else if (hasServer)
+        {
+            // No custom client text to delete (base-official), but there is a server entry — offer to delete that.
+            if (!Views.ConfirmDialog.Show("Delete server item",
+                    $"#{id} has no custom client text to delete.\n\nDelete its server item (item_db) instead?", yes: "Delete server item"))
+                return;
+            alsoServer = true;
+        }
+        else
+        {
+            Views.ConfirmDialog.Alert("Nothing to delete",
+                "This item has no custom client text and no server entry to delete — it's a read-only official (base) entry.");
+            return;
+        }
+
+        using (_session.Commands.BeginBatch($"Delete #{id}"))
+        {
+            if (clientCmd is not null) _session.Commands.Execute(clientCmd);
+            if (alsoServer && _overlay!.GetEffective(row.Key) is { } import)
+                _session.Commands.Execute(new RemoveImportCommand(_overlay, import));
+        }
+        List.SyncWithOverlay();  // re-applies the client-only filter: a deleted custom entry drops from the list
+        RefreshEditor();          // an override reverted to base -> show the base text
         _syncItems?.Invoke();
     }
 
@@ -251,10 +333,11 @@ public sealed partial class ClientItemsViewModel : ObservableObject, IDisposable
     {
         if (_overlay is null || List?.SelectedRow is not { } row || Schema.KeyField is not { Kind: FieldKind.Int } keyField) return;
 
+        if (_overlay.GetEffective(row.Key) is not { } source) return; // client-only (orphan) row: no server record to copy
         if (PromptId("Copy to ID", "Target ID", NextFreeId(keyField.Name)) is not { } newId) return;
         if (_overlay.GetEffective(RecordKey.Of(newId)) is not null) return;
 
-        var clone = _overlay.GetEffective(row.Key)!.DeepClone();
+        var clone = source.DeepClone();
         clone.SetRaw(keyField.Name, newId);
         if (Schema.Field("AegisName") is not null) clone.SetRaw("AegisName", $"Custom_{newId}");
         _session.Commands.Execute(new AddRecordCommand(_overlay, clone));
@@ -317,7 +400,9 @@ public sealed partial class ClientItemsViewModel : ObservableObject, IDisposable
 
     public async Task EnsureLoadedAsync()
     {
-        if (_overlay is not null) return;
+        // Already loaded: re-sync so the client-only list reflects any server-side changes made elsewhere
+        // (e.g. a "server only" delete removed the item_db record) — its filter drops now-orphaned rows.
+        if (_overlay is not null) { List?.SyncWithOverlay(); return; }
 
         IsLoading = true;
         try
@@ -336,13 +421,12 @@ public sealed partial class ClientItemsViewModel : ObservableObject, IDisposable
 
         var list = new DbListViewModel(_overlay,
             key => _images.ItemIcon(_clientItems.ResourceOf((int)key.AsInt)), // no-clone read per render
-            key => _clientItems.Exists((int)key.AsInt)); // only ids that actually have a client entry
+            key => _clientItems.Exists((int)key.AsInt), // only ids that actually have a client entry
+            OrphanClientRows); // + client-only entries whose server item was deleted, so they stay editable
         list.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName != nameof(DbListViewModel.SelectedRow)) return;
-            Editor = list.SelectedRow is { } row
-                ? new ClientTextViewModel(row.Record, _clientItems, _images, _session.Commands, _settings, Resolver(), _sprite)
-                : null;
+            Editor = list.SelectedRow?.EffectiveRecord is { } rec ? MakeEditor(rec) : null;
             OnPropertyChanged(nameof(CanRestore));
         };
 

@@ -395,6 +395,15 @@ public sealed class GrfService : IDisposable
         catch { return null; }
     }
 
+    /// <summary>Raw bytes of a file from the chosen icon/loose source (not the main configured GRF) — lets the
+    /// pickers read a sprite's .spr/.act from whichever source the user is browsing.</summary>
+    public byte[]? GetDataFromSource(string relativePath)
+    {
+        if (_iconSource is null || string.IsNullOrWhiteSpace(relativePath)) return null;
+        try { return _icon.GetData(Normalize(relativePath)); }
+        catch { return null; }
+    }
+
     public byte[]? GetData(string relativePath)
     {
         if (!_configured) return null;

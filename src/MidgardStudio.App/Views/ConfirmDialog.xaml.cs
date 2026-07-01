@@ -37,6 +37,27 @@ public partial class ConfirmDialog : FluentWindow
         dialog.ShowDialog();
     }
 
+    /// <summary>The choice from a three-way prompt: the primary action, the alternate action, or cancel.</summary>
+    public enum Choice { Primary, Alternate, Cancel }
+
+    /// <summary>Shows a themed three-button prompt (primary / alternate / cancel) — e.g. "Delete both" /
+    /// "This side only" / "Cancel". Returns which button was clicked (Cancel on close).</summary>
+    public static Choice Choose(string title, string message, string primary, string alternate, string cancel = "Cancel")
+    {
+        var dialog = Create(title, message);
+        dialog.YesButton.Content = primary;
+        dialog.AltButton.Content = alternate;
+        dialog.AltButton.Visibility = Visibility.Visible;
+        dialog.NoButton.Content = cancel;
+        dialog.ShowDialog();
+        return dialog._choice switch
+        {
+            SavePrompt.Save => Choice.Primary,
+            SavePrompt.Discard => Choice.Alternate,
+            _ => Choice.Cancel,
+        };
+    }
+
     /// <summary>Shows a themed Save / Don't-save / Cancel prompt (e.g. closing with unsaved changes).</summary>
     public static SavePrompt AskSave(string title, string message)
     {

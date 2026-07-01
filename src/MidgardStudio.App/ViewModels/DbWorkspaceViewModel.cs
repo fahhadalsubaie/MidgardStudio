@@ -98,7 +98,27 @@ public sealed partial class DbWorkspaceViewModel : ObservableObject, IDisposable
         if (_overlay is null || List?.SelectedRow is not { } row) return;
         if (_overlay.OriginOf(row.Key) == RecordOrigin.Base) { PortReportText = "Base entries are read-only; nothing to delete."; return; }
         if (_overlay.GetEffective(row.Key) is not { } import) return;
-        _session.Commands.Execute(new RemoveImportCommand(_overlay, import));
+
+        // Always confirm. If this item also has (deletable) client text, offer to remove both sides at once —
+        // server and client are otherwise independent, so the default keeps the client text.
+        bool alsoClient = false;
+        if (IsItemDb && _clientItems is not null && _clientItems.HasEditableClientText((int)row.Key.AsInt))
+        {
+            var choice = Views.ConfirmDialog.Choose("Delete item",
+                $"Delete server item #{row.Key}?\n\nThis item also has client text (itemInfo).",
+                primary: "Delete both", alternate: "Server only");
+            if (choice == Views.ConfirmDialog.Choice.Cancel) return;
+            alsoClient = choice == Views.ConfirmDialog.Choice.Primary;
+        }
+        else if (!Views.ConfirmDialog.Show("Delete entry", $"Delete {_schema.DisplayName} #{row.Key}?", yes: "Delete"))
+            return;
+
+        using (_session.Commands.BeginBatch($"Delete {_schema.DisplayName} {row.Key}"))
+        {
+            _session.Commands.Execute(new RemoveImportCommand(_overlay, import));
+            if (alsoClient && _clientItems!.RemoveClientTextCommand((int)row.Key.AsInt) is { } clientCmd)
+                _session.Commands.Execute(clientCmd);
+        }
         List.SyncWithOverlay();
         ApplySelection(List.SelectedRow);
     }
@@ -229,6 +249,10 @@ public sealed partial class DbWorkspaceViewModel : ObservableObject, IDisposable
     {
         if (!IsItemDb || _clientItems is null || List?.SelectedRow is not { } row) return;
         int id = (int)row.Key.AsInt;
+        // Already has client text? Just navigate to it. Seeding a SeedClientTextCommand over an existing entry
+        // would put an unconditional Remove on the undo stack, so a later undo would silently delete the user's
+        // pre-existing client text (that command is documented for NEW ids only).
+        if (_clientItems.Exists(id)) { _navigate?.Invoke("client_items", row.Key); return; }
         var entry = _clientItems.GetOrCreate(id);
         if (string.IsNullOrEmpty(entry.IdentifiedDisplayName))
             entry.IdentifiedDisplayName = row.Record.GetString("Name") ?? string.Empty;

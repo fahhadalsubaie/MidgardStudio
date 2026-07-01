@@ -1,5 +1,8 @@
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using MidgardStudio.Core.Lua;
+using MidgardStudio.Core.Sprites;
 using MidgardStudio.Core.Workspace;
 
 namespace MidgardStudio.Tests;
@@ -25,6 +28,29 @@ public class AccessoryTablesTests
     }
 
     [Fact]
+    public void FindId_resolves_a_real_registered_sprite_to_its_real_view_id()
+    {
+        // The Forge reuse path: a sprite already present in the real client tables must resolve to the id it
+        // already holds (so no duplicate accessory entry is written). Uses the shipped 1252 files as-is.
+        string idPath = Path.Combine(DataInfo, "accessoryid.lub");
+        string namePath = Path.Combine(DataInfo, "accname.lub");
+        if (!File.Exists(idPath) || !File.Exists(namePath)) return;
+
+        var codec = new LuaFileCodec(1252);
+        var constants = AccessoryTables.ReadConstants(codec.ReadText(idPath));
+        var names = AccessoryTables.ReadNames(codec.ReadText(namePath));
+
+        // Pick a real entry present in BOTH tables and assert the reverse lookup recovers its id.
+        var sample = names.FirstOrDefault(kv => constants.ContainsKey(kv.Key));
+        Assert.NotNull(sample.Key); // there is at least one fully-mapped accessory in the shipped files
+
+        int expected = constants[sample.Key];
+        Assert.Equal(expected, SpriteRegistry.FindId(constants, names, new List<PendingRegistration>(), sample.Value));
+        // A name that isn't in the tables stays unregistered (would trigger a fresh registration, not a reuse).
+        Assert.Null(SpriteRegistry.FindId(constants, names, new List<PendingRegistration>(), "_definitely_not_a_real_sprite_zzz"));
+    }
+
+    [Fact]
     public void Append_constant_inserts_and_reparses()
     {
         string idPath = Path.Combine(DataInfo, "accessoryid.lub");
@@ -40,6 +66,34 @@ public class AccessoryTablesTests
 
         Assert.Equal(before.Count + 1, after.Count);
         Assert.Equal(nextId, after["ACCESSORY_TEST_MIDGARD"]);
+    }
+
+    [Fact]
+    public void Append_after_a_comma_less_last_entry_adds_the_separator_and_stays_valid()
+    {
+        // The shipped accessoryid.lub / accname.lub end their LAST entry WITHOUT a trailing comma. Appending a
+        // new entry must add the separator to that final entry (else the two entries abut = Lua syntax error the
+        // strict client rejects), and both must remain present so the client doesn't crash on a half-mapped id.
+        string idText =
+            "ACCESSORY_IDs = {\n" +
+            "\tACCESSORY_C_Jaow_Pirun = 2810,\n" +
+            "\tACCESSORY_C_Spirit_Cat_TH = 2811\n" +   // <-- no trailing comma, exactly like the real file
+            "}\n";
+        string updatedId = AccessoryTables.AppendConstant(idText, "ACCESSORY_IDs", "ACCESSORY_C_New_Hat", 2812);
+        var consts = AccessoryTables.ReadConstants(updatedId);
+        Assert.Equal(2811, consts["ACCESSORY_C_Spirit_Cat_TH"]); // previous last entry still parses (got its comma)
+        Assert.Equal(2812, consts["ACCESSORY_C_New_Hat"]);       // new entry parses
+        Assert.Contains("ACCESSORY_C_Spirit_Cat_TH = 2811,", updatedId); // separator inserted on the old last line
+
+        string nameText =
+            "AccNameTable = {\n" +
+            "\t[ACCESSORY_IDs.ACCESSORY_C_Jaow_Pirun] = \"_C_Jaow_Pirun\",\n" +
+            "\t[ACCESSORY_IDs.ACCESSORY_C_Spirit_Cat_TH] = \"_C_Spirit_Cat_TH\"\n" + // no trailing comma
+            "}\n";
+        string updatedName = AccessoryTables.AppendName(nameText, "AccNameTable", "ACCESSORY_IDs", "ACCESSORY_C_New_Hat", "_C_New_Hat");
+        var names = AccessoryTables.ReadNames(updatedName);
+        Assert.Equal("_C_Spirit_Cat_TH", names["ACCESSORY_C_Spirit_Cat_TH"]); // sibling intact
+        Assert.Equal("_C_New_Hat", names["ACCESSORY_C_New_Hat"]);             // new mapping present in the file too
     }
 
     [Fact]

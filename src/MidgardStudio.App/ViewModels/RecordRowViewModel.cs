@@ -16,6 +16,7 @@ public sealed class RecordRowViewModel : ObservableObject
     private readonly string _keyField;
     private readonly string _displayField;
     private readonly Func<RecordKey, ImageSource?>? _iconResolver;
+    private readonly DbRecord? _detached; // stand-in record for a row with no overlay entry (e.g. a client-only item)
 
     // Searchable text is stable between keystrokes, so resolve it through the overlay once and cache it.
     // The filter pass then does plain string compares instead of dictionary lookups + a fresh
@@ -24,11 +25,13 @@ public sealed class RecordRowViewModel : ObservableObject
     // stale cache would leave the "Overridden" chip showing after a restore-to-default until reload.
     private string? _keyText, _aegisName, _name, _typeText;
 
-    public RecordRowViewModel(OverlayTable table, RecordKey key, Func<RecordKey, ImageSource?>? iconResolver = null)
+    public RecordRowViewModel(OverlayTable table, RecordKey key, Func<RecordKey, ImageSource?>? iconResolver = null,
+        DbRecord? detached = null)
     {
         _table = table;
         Key = key;
         _iconResolver = iconResolver;
+        _detached = detached;
         _keyField = table.Schema.KeyField?.Name ?? "Id";
         _displayField = table.Schema.DisplayField?.Name ?? "Name";
     }
@@ -40,7 +43,12 @@ public sealed class RecordRowViewModel : ObservableObject
     /// cache bounds retention instead.</summary>
     public ImageSource? Icon => _iconResolver?.Invoke(Key);
 
-    public DbRecord Record => _table.GetEffective(Key)!;
+    public DbRecord Record => (_table.GetEffective(Key) ?? _detached)!;
+
+    /// <summary>The effective record (overlay entry, else the detached stand-in), or null when it exists in
+    /// neither — e.g. a row deleted on the server side with no client-only stand-in. Callers that can outlive a
+    /// delete use this instead of <see cref="Record"/> to avoid dereferencing a removed record.</summary>
+    public DbRecord? EffectiveRecord => _table.GetEffective(Key) ?? _detached;
 
     public string KeyText => _keyText ??= Key.ToString();
 
@@ -50,7 +58,8 @@ public sealed class RecordRowViewModel : ObservableObject
 
     public string TypeText => _typeText ??= Record.GetString("Type") ?? string.Empty;
 
-    public RecordOrigin Origin => _table.OriginOf(Key);
+    // A detached (client-only) row has no overlay entry; show it as a custom entry rather than a base one.
+    public RecordOrigin Origin => _table.GetEffective(Key) is null && _detached is not null ? RecordOrigin.NewCustom : _table.OriginOf(Key);
 
     public bool Matches(string lowerQuery) =>
         KeyText.Contains(lowerQuery, StringComparison.OrdinalIgnoreCase)

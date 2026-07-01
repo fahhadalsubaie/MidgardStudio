@@ -4,6 +4,7 @@
                  xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
                  xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
                  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                 xmlns:controls="clr-namespace:MidgardStudio.App.Controls"
                  xmlns:vm="clr-namespace:MidgardStudio.App.ViewModels"
                  mc:Ignorable="d" d:DataContext="{d:DesignInstance Type=vm:SpritePickerViewModel}"
                  Title="Choose a headgear sprite"
@@ -53,7 +54,19 @@
                     </ListBox.InputBindings>
                     <ListBox.ItemTemplate>
                         <DataTemplate>
-                            <TextBlock Text="{Binding}" FontFamily="Consolas" Margin="2,3" TextTrimming="CharacterEllipsis" />
+                            <Grid Margin="2,3">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Border Grid.Column="0" Width="44" Height="44" CornerRadius="3" Background="#22000000"
+                                        Margin="0,0,8,0">
+                                    <controls:AnimatedSpriteImage Frames="{Binding Animation.Frames}"
+                                                                  IntervalMs="{Binding Animation.IntervalMs}" Margin="2" />
+                                </Border>
+                                <TextBlock Grid.Column="1" Text="{Binding Name}" FontFamily="Consolas"
+                                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                            </Grid>
                         </DataTemplate>
                     </ListBox.ItemTemplate>
                 </ListBox>

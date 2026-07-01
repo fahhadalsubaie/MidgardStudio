@@ -18,6 +18,8 @@ public sealed partial class DbListViewModel : ObservableObject
 {
     private readonly OverlayTable _table;
     private readonly Func<RecordKey, ImageSource?>? _iconResolver;
+    private readonly Func<RecordKey, bool>? _include; // list-membership predicate (e.g. "has a client entry")
+    private readonly Func<IEnumerable<RecordRowViewModel>>? _extraRows; // virtual rows not backed by the overlay (client-only items)
     private readonly List<RecordRowViewModel> _all;
     private CancellationTokenSource? _filterCts;
 
@@ -25,16 +27,29 @@ public sealed partial class DbListViewModel : ObservableObject
     private bool _sortAscending = true;
 
     public DbListViewModel(OverlayTable table, Func<RecordKey, ImageSource?>? iconResolver = null,
-        Func<RecordKey, bool>? include = null)
+        Func<RecordKey, bool>? include = null, Func<IEnumerable<RecordRowViewModel>>? extraRows = null)
     {
         _table = table;
         _iconResolver = iconResolver;
+        _include = include;
+        _extraRows = extraRows;
         _all = table.Effective()
-            .Where(r => include is null || include(r.Key))
+            .Where(r => _include is null || _include(r.Key))
             .Select(r => new RecordRowViewModel(table, r.Key, iconResolver))
             .ToList();
+        AppendExtraRows();
         SortAll();
         ApplyFilter(_all);
+    }
+
+    /// <summary>Adds the virtual (overlay-less) rows — e.g. client-only items whose server record was deleted —
+    /// that aren't already represented, so they show alongside the overlay rows and survive a resync.</summary>
+    private void AppendExtraRows()
+    {
+        if (_extraRows is null) return;
+        var have = new HashSet<RecordKey>(_all.Select(r => r.Key));
+        foreach (var row in _extraRows())
+            if (have.Add(row.Key)) _all.Add(row);
     }
 
     public RangeObservableCollection<RecordRowViewModel> Rows { get; } = new();
@@ -128,12 +143,14 @@ public sealed partial class DbListViewModel : ObservableObject
         _all.Clear();
         foreach (var rec in _table.Effective())
         {
+            if (_include is not null && !_include(rec.Key)) continue; // keep the list's membership filter (e.g. client-only rows)
             if (byKey.TryGetValue(rec.Key, out var row))
                 row.Refresh(); // overlay changed (undo / redo / restore / delete) — re-read the origin pill + cached text
             else
                 row = new RecordRowViewModel(_table, rec.Key, _iconResolver);
             _all.Add(row);
         }
+        AppendExtraRows(); // re-add client-only rows (their server record isn't in the overlay)
 
         SortAll();
         FilterNow();

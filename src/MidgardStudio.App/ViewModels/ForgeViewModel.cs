@@ -132,10 +132,14 @@ public sealed partial class ForgeViewModel : ObservableObject
     public bool IsHeadgear => _draft.GetSet("Locations")?.Any(HeadgearKeys.Contains) ?? false;
     public bool WillRegisterSprite => IsHeadgear && !string.IsNullOrWhiteSpace(SpriteName) && _sprite.IsAvailable;
 
+    /// <summary>A NEW accessory entry gets written only when the picked sprite isn't already in the tables —
+    /// an already-registered sprite reuses its View id and touches no lua file.</summary>
+    private bool WillRegisterNewSprite => WillRegisterSprite && _sprite.FindViewForSprite(SpriteName.Trim()) is null;
+
     public string ServerYamlPreview => ServerEditor.YamlPreview;
     public string ClientLuaPreview => ItemInfoWriter.FormatEntry(CurrentClientEntry());
     public string WriteTargets =>
-        "import/item_db.yml  ·  itemInfo_C.lua" + (WillRegisterSprite ? "  ·  datainfo/accessoryid.lub" : string.Empty);
+        "import/item_db.yml  ·  itemInfo_C.lua" + (WillRegisterNewSprite ? "  ·  datainfo/accessoryid.lub" : string.Empty);
 
     /// <summary>Begins a fresh draft item (a new scratch overlay + record + hosted editor).</summary>
     private void NewDraft()
@@ -286,6 +290,8 @@ public sealed partial class ForgeViewModel : ObservableObject
                 Add("Headgear sprite", "info", "Set a sprite name to auto-allocate the View id");
             else if (!_sprite.IsAvailable)
                 Add("Headgear sprite", "warn", "accessoryid.lub / accname.lub not found");
+            else if (_sprite.FindViewForSprite(SpriteName.Trim()) is { } v)
+                Add("Headgear sprite", "ok", $"“{SpriteName}” already registered — will reuse View {v}");
             else
                 Add("Headgear sprite", "ok", $"Will register “{SpriteName}” and allocate a View");
         }
@@ -337,10 +343,22 @@ public sealed partial class ForgeViewModel : ObservableObject
         {
             try
             {
-                plannedSprite = _sprite.PlanAccessory(aegis, SpriteName.Trim());
-                view = plannedSprite.Id;
-                _draft.SetRaw("View", view);
-                spriteNote = $"  Sprite queued as {plannedSprite.ConstantName} (View {view}); written on Save.";
+                // The sprite is already in accname/accessoryid? Reuse THAT View id — it's the sprite's real
+                // accessory id, so the item shows in-game. Only a genuinely new sprite gets a fresh registration
+                // (a duplicate id for an existing sprite is what left items invisible).
+                if (_sprite.FindViewForSprite(SpriteName.Trim()) is { } existingView)
+                {
+                    view = existingView;
+                    _draft.SetRaw("View", view);
+                    spriteNote = $"  Sprite already registered — reusing View {view}; no new entry written.";
+                }
+                else
+                {
+                    plannedSprite = _sprite.PlanAccessory(aegis, SpriteName.Trim());
+                    view = plannedSprite.Id;
+                    _draft.SetRaw("View", view);
+                    spriteNote = $"  Sprite queued as {plannedSprite.ConstantName} (View {view}); written on Save.";
+                }
             }
             catch (Exception ex)
             {
@@ -394,19 +412,9 @@ public sealed partial class ForgeViewModel : ObservableObject
     [RelayCommand]
     private void BrowseIcon()
     {
-        var rows = new List<IconItemRow>();
-        if (_schemas.Get("item_db") is { } schema)
-        {
-            foreach (var r in _session.GetActiveOverlay(schema).Effective())
-            {
-                int id = r.GetInt("Id");
-                var res = _clientItems.ResourceOf(id);
-                if (string.IsNullOrWhiteSpace(res)) continue; // only items that actually have an icon to copy
-                var name = r.GetString("Name");
-                rows.Add(new IconItemRow(_images, id,
-                    string.IsNullOrWhiteSpace(name) ? (r.GetString("AegisName") ?? string.Empty) : name!, res!));
-            }
-        }
+        var rows = _schemas.Get("item_db") is { } schema
+            ? IconPickerRows.BuildItemRows(_session.GetActiveOverlay(schema).Effective(), _images, _clientItems)
+            : new List<IconItemRow>();
 
         var picker = new IconPickerViewModel(_images, rows);
         var dlg = new MidgardStudio.App.Views.IconPickerDialog(picker)
