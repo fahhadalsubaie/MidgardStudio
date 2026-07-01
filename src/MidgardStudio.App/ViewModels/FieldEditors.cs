@@ -217,6 +217,7 @@ public sealed class ScriptFieldEditorViewModel : FieldEditorViewModel
     public ScriptFieldEditorViewModel(DbRecord r, FieldSchema f, FieldEditorContext c) : base(r, f, c)
     {
         InsertBonusCommand = new RelayCommand(InsertBonus);
+        ConditionalBonusesCommand = new RelayCommand(ConditionalBonuses);
     }
 
     public string Value
@@ -231,12 +232,23 @@ public sealed class ScriptFieldEditorViewModel : FieldEditorViewModel
     private void InsertBonus()
     {
         if (!IsEditable) return;
-        var dialog = new BonusBuilderDialog { Owner = System.Windows.Application.Current.MainWindow };
+        var dialog = new BonusBuilderDialog(Context.Mode != ServerMode.PreRenewal) { Owner = System.Windows.Application.Current.MainWindow };
         if (dialog.ShowDialog() == true && !string.IsNullOrWhiteSpace(dialog.Result))
         {
             var current = Value;
             Value = string.IsNullOrWhiteSpace(current) ? dialog.Result : current.TrimEnd() + "\n" + dialog.Result;
         }
+    }
+
+    /// <summary>Opens the Refine/Grade tier builder, seeded from the script's managed block, and writes back
+    /// the updated script (nested conditional block + a matching client description on the next autofill).</summary>
+    public ICommand ConditionalBonusesCommand { get; }
+
+    private void ConditionalBonuses()
+    {
+        if (!IsEditable) return;
+        var dialog = new ConditionalBonusBuilderDialog(Value, Context.Mode != ServerMode.PreRenewal) { Owner = System.Windows.Application.Current.MainWindow };
+        if (dialog.ShowDialog() == true) Value = dialog.ResultScript;
     }
 
     public override string Summary

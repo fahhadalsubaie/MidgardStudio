@@ -12,6 +12,8 @@ using MidgardStudio.Core.Commands;
 using MidgardStudio.Core.Model;
 using MidgardStudio.Core.Overlay;
 using MidgardStudio.Core.Schema;
+using MidgardStudio.Core.Scripting;
+using MidgardStudio.Core.Workspace;
 
 namespace MidgardStudio.App.ViewModels;
 
@@ -115,12 +117,57 @@ public sealed partial class ComboEditorViewModel : ObservableObject, IDisposable
     private void InsertBonus()
     {
         if (SelectedRow is not { IsCustom: true }) return;
-        var dlg = new Views.BonusBuilderDialog { Owner = System.Windows.Application.Current.MainWindow };
+        var dlg = new Views.BonusBuilderDialog(_session.Mode != Core.Workspace.ServerMode.PreRenewal) { Owner = System.Windows.Application.Current.MainWindow };
         if (dlg.ShowDialog() == true && !string.IsNullOrWhiteSpace(dlg.Result))
         {
             var current = Script;
             Script = string.IsNullOrWhiteSpace(current) ? dlg.Result : current.TrimEnd() + "\n" + dlg.Result;
         }
+    }
+
+    /// <summary>Opens the combo Refine/Grade tier builder, seeded from the combo's script and its pieces'
+    /// equip slots, and writes back the generated conditional block.</summary>
+    [RelayCommand]
+    private void ConditionalBonuses()
+    {
+        if (SelectedRow is not { IsCustom: true } row) return;
+        var eqi = DeriveEqiSlots(row);
+        if (eqi.Count == 0)
+        {
+            Views.ConfirmDialog.Alert("No pieces to gate on",
+                "Add at least one equippable item to this combo first — refine and grade conditions are checked across the combo's equipment slots.");
+            return;
+        }
+        var dlg = new Views.ComboConditionalBonusBuilderDialog(Script, eqi, _session.Mode != ServerMode.PreRenewal)
+        { Owner = System.Windows.Application.Current.MainWindow };
+        if (dlg.ShowDialog() == true) Script = dlg.ResultScript;
+    }
+
+    /// <summary>The distinct EQI equip slots of the selected combo's first item-set, mapped from each piece's
+    /// item Location — the slots the refine/grade checks run over.</summary>
+    private IReadOnlyList<string> DeriveEqiSlots(ComboSetRowViewModel row)
+    {
+        var alt = row.AlternativeRecords().FirstOrDefault();
+        if (alt?.Get("Combo") is not IList<object> members || members.Count == 0) return Array.Empty<string>();
+
+        var byAegis = new Dictionary<string, DbRecord>(StringComparer.OrdinalIgnoreCase);
+        foreach (var r in _drops.Items.Effective())
+        {
+            var a = r.GetString("AegisName");
+            if (!string.IsNullOrEmpty(a)) byAegis[a] = r;
+        }
+
+        var slots = new List<string>();
+        foreach (var mem in members)
+        {
+            if (byAegis.TryGetValue(mem?.ToString() ?? string.Empty, out var rec))
+            {
+                var loc = rec.GetSet("Locations")?.FirstOrDefault();
+                var eqi = loc is null ? null : ComboConditionalScript.LocationToEqi(loc);
+                if (eqi is not null && !slots.Contains(eqi)) slots.Add(eqi);
+            }
+        }
+        return slots;
     }
 
     public async Task EnsureLoadedAsync()

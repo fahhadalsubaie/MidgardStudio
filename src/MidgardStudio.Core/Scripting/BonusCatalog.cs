@@ -241,6 +241,23 @@ public static class BonusCatalog
         B2(CMisc, "bDropAddRace", "+n% drop rate vs race", "Increases item drop rate from a race.", EnumP("race", Race), Pct("percent")),
     };
 
+    /// <summary>The 4th-job / renewal-only effects (the trait stats, their derived sub-stats, and the AP
+    /// resource). They have no meaning in Pre-Renewal, so the builder hides them on a pre-re profile to keep
+    /// users from generating renewal-only scripts by mistake.</summary>
+    private static readonly HashSet<string> RenewalOnlyNames = new(StringComparer.Ordinal)
+    {
+        "bPow", "bSta", "bWis", "bSpl", "bCon", "bCrt", "bAllTraitStats",
+        "bPAtk", "bPAtkRate", "bSMatk", "bSMatkRate", "bRes", "bResRate", "bMRes", "bMResRate",
+        "bHPlus", "bHPlusRate", "bCRate", "bCRateRate", "bMaxAP", "bMaxAPrate",
+    };
+
+    /// <summary>True when the effect is renewal-only (see <see cref="RenewalOnlyNames"/>).</summary>
+    public static bool IsRenewalOnly(BonusDefinition def) => RenewalOnlyNames.Contains(def.Name);
+
+    /// <summary>The effects available for a mode: Renewal shows everything; Pre-Renewal hides the 4th-job set.</summary>
+    public static IReadOnlyList<BonusDefinition> ForMode(bool renewal) =>
+        renewal ? All : All.Where(d => !RenewalOnlyNames.Contains(d.Name)).ToList();
+
     /// <summary>Formats a complete bonus statement, applying each param's display scale
     /// (e.g. a 5% auto-cast chance becomes <c>50</c>): <c>bonus3 bAutoSpell,"MG_FIREBOLT",1,50;</c>.</summary>
     public static string Format(BonusDefinition def, IReadOnlyList<string> values)

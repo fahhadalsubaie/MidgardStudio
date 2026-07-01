@@ -189,12 +189,17 @@
                     <!-- Shared bonus script -->
                     <Grid Margin="2,0,0,6">
                         <TextBlock Text="BONUS SCRIPT" Style="{StaticResource TitleMicro}" VerticalAlignment="Center" />
-                        <ui:Button Content="Bonus builder" Appearance="Secondary" HorizontalAlignment="Right"
-                                   Command="{Binding InsertBonusCommand}"
-                                   Visibility="{Binding IsEditable, Converter={StaticResource BoolToVis}}"
-                                   ToolTip="Build a bonus statement visually and append it">
-                            <ui:Button.Icon><ui:SymbolIcon Symbol="Add24" /></ui:Button.Icon>
-                        </ui:Button>
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
+                                    Visibility="{Binding IsEditable, Converter={StaticResource BoolToVis}}">
+                            <ui:Button Content="Bonus builder" Appearance="Secondary"
+                                       Command="{Binding InsertBonusCommand}"
+                                       ToolTip="Build a bonus statement visually and append it">
+                                <ui:Button.Icon><ui:SymbolIcon Symbol="Add24" /></ui:Button.Icon>
+                            </ui:Button>
+                            <ui:Button Content="Refine / Grade bonuses" Appearance="Secondary" Margin="8,0,0,0"
+                                       Command="{Binding ConditionalBonusesCommand}"
+                                       ToolTip="Add combo bonuses that unlock at a total-refine or enchant-grade milestone across the pieces (grade is Renewal-only)." />
+                        </StackPanel>
                     </Grid>
                     <Border BorderBrush="#5A8D2DF2" BorderThickness="1" CornerRadius="6" MinHeight="220">
                         <avalon:TextEditor common:AvalonEditBehavior.BindableText="{Binding Script, Mode=TwoWay}"

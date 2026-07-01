@@ -52,10 +52,12 @@ public sealed partial class BonusBuilderViewModel : ObservableObject
 {
     private const string AllCategories = "All effects";
     private readonly SkillLookupService? _skillLookup;
+    private readonly bool _renewal;
 
-    public BonusBuilderViewModel(SkillLookupService? skillLookup = null)
+    public BonusBuilderViewModel(SkillLookupService? skillLookup = null, bool renewal = true)
     {
         _skillLookup = skillLookup;
+        _renewal = renewal; // Pre-Renewal profiles hide the 4th-job / renewal-only effects (see BonusCatalog.ForMode)
         Categories = new ObservableCollection<string>(new[] { AllCategories }.Concat(BonusCatalog.Categories));
         _selectedCategory = AllCategories;
         Definitions = new ObservableCollection<BonusDefinition>();
@@ -106,7 +108,7 @@ public sealed partial class BonusBuilderViewModel : ObservableObject
     {
         string q = (Search ?? string.Empty).Trim().ToLowerInvariant();
         Definitions.Clear();
-        foreach (var d in BonusCatalog.All)
+        foreach (var d in BonusCatalog.ForMode(_renewal))
         {
             if (SelectedCategory != AllCategories && d.Category != SelectedCategory) continue;
             if (q.Length > 0 && !d.Search.Contains(q)) continue;

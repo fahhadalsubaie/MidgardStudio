@@ -62,4 +62,27 @@ public class BonusCatalogTests
             Assert.EndsWith(";", line);
         }
     }
+
+    [Theory]
+    [InlineData("bPow")]        // trait stat
+    [InlineData("bAllTraitStats")]
+    [InlineData("bPAtk")]       // derived 4th-job sub-stat
+    [InlineData("bSMatk")]
+    [InlineData("bRes")]
+    [InlineData("bMaxAP")]      // 4th-job resource
+    public void ForMode_hides_4th_job_effects_in_pre_renewal(string renewalOnly)
+    {
+        Assert.Contains(BonusCatalog.ForMode(renewal: true), d => d.Name == renewalOnly);   // renewal: available
+        Assert.DoesNotContain(BonusCatalog.ForMode(renewal: false), d => d.Name == renewalOnly); // pre-re: hidden
+    }
+
+    [Fact]
+    public void ForMode_keeps_classic_effects_in_both_modes()
+    {
+        foreach (var name in new[] { "bStr", "bAllStats", "bAtk", "bMaxHP", "bAddRace" })
+        {
+            Assert.Contains(BonusCatalog.ForMode(renewal: true), d => d.Name == name);
+            Assert.Contains(BonusCatalog.ForMode(renewal: false), d => d.Name == name);
+        }
+    }
 }

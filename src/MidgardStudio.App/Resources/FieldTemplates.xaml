@@ -621,6 +621,8 @@
                            ToolTip="Open the visual script generator — pick effects in plain English (no scripting needed), preview them live, and insert one or many at once">
                     <ui:Button.Icon><ui:SymbolIcon Symbol="Sparkle24" /></ui:Button.Icon>
                 </ui:Button>
+                <ui:Button Content="Refine / Grade bonuses" Command="{Binding ConditionalBonusesCommand}" IsEnabled="{Binding IsEditable}" Margin="8,0,0,0"
+                           ToolTip="Add bonuses that unlock at refine or enchant-grade milestones — builds the nested script and the matching client description (grade is Renewal-only)." />
                 <TextBlock Text="No scripting needed — browse effects by category, set values, stack as many as you like."
                            VerticalAlignment="Center" Opacity="0.5" FontSize="11.5" Margin="12,0,0,0" TextTrimming="CharacterEllipsis" />
             </StackPanel>

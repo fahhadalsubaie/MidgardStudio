@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
 using MidgardStudio.Core.Model;
+using MidgardStudio.Core.Scripting;
 
 namespace MidgardStudio.Core.Lua;
 
@@ -46,11 +47,15 @@ public sealed class ItemAutocomplete
         var lines = new List<string>();
         string type = server.GetString("Type") ?? "Etc";
         var locations = server.GetSet("Locations");
-        var insights = ItemScriptParser.Parse(server.GetScript("Script")?.Text, _skill);
+        string? script = server.GetScript("Script")?.Text;
+        // Flat bonuses parse the script WITHOUT the managed conditional block, so a tier's bonuses aren't
+        // double-counted as flat; the block is described separately (below) in the official 4th-job layout.
+        var insights = ItemScriptParser.Parse(ConditionalScript.StripManagedBlock(script), _skill);
+        var conditional = ConditionalScript.TryParse(script);
 
-        if (IsUsable(type)) BuildUsable(server, insights, lines);
-        else if (string.Equals(type, "Card", StringComparison.Ordinal)) BuildCard(server, locations, insights, lines);
-        else BuildEquip(server, type, locations, insights, lines);
+        if (IsUsable(type)) BuildUsable(server, insights, conditional, lines);
+        else if (string.Equals(type, "Card", StringComparison.Ordinal)) BuildCard(server, locations, insights, conditional, lines);
+        else BuildEquip(server, type, locations, insights, conditional, lines);
 
         while (lines.Count > 0 && lines[^1].Length == 0) lines.RemoveAt(lines.Count - 1);
         return lines;
@@ -60,7 +65,7 @@ public sealed class ItemAutocomplete
         type is "Healing" or "Usable" or "DelayConsume";
 
     // ---- Usables (potions, etc.) ----
-    private void BuildUsable(DbRecord server, ScriptInsights ins, List<string> lines)
+    private void BuildUsable(DbRecord server, ScriptInsights ins, ConditionalScript? conditional, List<string> lines)
     {
         if (_c.IncludeClass)
             lines.Add(ClassLine(ServerItemText.CategoryLabel(server.GetString("Type") ?? "Usable", null, null), usable: true));
@@ -74,15 +79,15 @@ public sealed class ItemAutocomplete
         }
 
         // Other script effects (skill casts, stat bonuses) — e.g. Infinite Flywing's "Casts Level 1 Teleport."
-        if (_c.IncludeScriptBonuses) BonusLines(ins, lines);
+        if (_c.IncludeScriptBonuses) BonusLines(ins, conditional, lines);
 
         WeightLine(server, lines);
     }
 
     // ---- Cards ----
-    private void BuildCard(DbRecord server, ISet<string>? locations, ScriptInsights ins, List<string> lines)
+    private void BuildCard(DbRecord server, ISet<string>? locations, ScriptInsights ins, ConditionalScript? conditional, List<string> lines)
     {
-        if (_c.IncludeScriptBonuses) BonusLines(ins, lines);
+        if (_c.IncludeScriptBonuses) BonusLines(ins, conditional, lines);
         if (_c.IncludeClass) lines.Add(ClassLine("Card", usable: false));
         if (_c.IncludeCompoundOn)
         {
@@ -93,9 +98,9 @@ public sealed class ItemAutocomplete
     }
 
     // ---- Equipment (weapons, armor, headgear, …) ----
-    private void BuildEquip(DbRecord server, string type, ISet<string>? locations, ScriptInsights ins, List<string> lines)
+    private void BuildEquip(DbRecord server, string type, ISet<string>? locations, ScriptInsights ins, ConditionalScript? conditional, List<string> lines)
     {
-        if (_c.IncludeScriptBonuses) BonusLines(ins, lines);
+        if (_c.IncludeScriptBonuses) BonusLines(ins, conditional, lines);
 
         if (_c.IncludeClass)
             lines.Add(ClassLine(ServerItemText.CategoryLabel(type, server.GetString("SubType"), locations), usable: false));
@@ -141,10 +146,21 @@ public sealed class ItemAutocomplete
 
     // ---- shared building blocks ----
 
-    private void BonusLines(ScriptInsights ins, List<string> lines)
+    private void BonusLines(ScriptInsights ins, ConditionalScript? conditional, List<string> lines)
     {
         lines.AddRange(ins.Bonuses);
-        if (ins.HasComplex && ins.Bonuses.Count == 0)
+
+        // Conditional (refine/grade) bonuses from the managed block, rendered in the official 4th-job layout.
+        var condLines = conditional?.Describe(_c.UseColors, _skill) ?? (IReadOnlyList<string>)System.Array.Empty<string>();
+        if (condLines.Count > 0)
+        {
+            if (_c.IncludeDividers && lines.Count > 0) lines.Add(_c.UseColors ? "^FFFFFF_^000000" : string.Empty);
+            lines.AddRange(condLines);
+        }
+
+        // "Has a special effect." only when there's genuinely nothing describable — no flat bonuses AND no
+        // conditional block (else a conditional-only item would wrongly show the generic line).
+        if (ins.HasComplex && ins.Bonuses.Count == 0 && condLines.Count == 0)
             lines.Add("Has a special effect.");
     }
 
